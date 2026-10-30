@@ -1,0 +1,59 @@
+# Example Afilmory static-site build configuration.
+# Pass this file to the container at /config/config.yaml.
+# Any real environment variable (e.g. -e S3_SECRET_ACCESS_KEY=...) overrides the
+# matching value here, so keep secrets out of this file.
+
+# Deployment base path. Use "/" for a root deploy, or a subpath such as
+# "/photos" for a GitHub Pages project page (site served at example.com/photos).
+basePath: /photos
+
+site:
+  name: "My Photos"
+  title: "My Photos"
+  description: "A personal photo stream."
+  url: https://example.com/photos
+  language: en
+  # accentColor: "#1c1c1e"
+
+author:
+  name: "Jane Doe"
+  url: https://example.com
+  # avatar: https://example.com/avatar.png
+
+social:
+  github: janedoe
+  twitter: janedoe
+  rss: true
+
+# strip | coarse | exact — how precise embedded photo GPS location may be.
+photoLocationMode: coarse
+
+# AGPL corresponding-source attribution. The image bundles no .git, so to label
+# the deployed site's source as "exact" set correspondingSourceUrl to a public
+# archive/tree of the exact afilmory-vercel source used to build this image.
+# Without it the build still succeeds but the footer is labeled non-exact.
+license:
+  # sourceUrl: https://github.com/OWNER/afilmory-vercel
+  # correspondingSourceUrl: https://github.com/OWNER/afilmory-vercel/tree/<sha>
+  # licenseUrl: https://github.com/OWNER/afilmory-vercel/blob/<sha>/LICENSE
+  # requireExactSource: false
+
+storage:
+  # local: read raw photos from a mounted folder (no credentials).
+  # s3:    read photos from S3-compatible object storage.
+  provider: local
+  local:
+    # Folder mounted into the container holding the raw photos.
+    photosPath: /data/photos
+    # Public URL prefix for the copied originals in the output site.
+    baseUrl: /originals
+  # s3:
+  #   bucket: my-bucket
+  #   region: us-east-1
+  #   endpoint: https://s3.us-east-1.amazonaws.com
+  #   prefix: ""
+  #   customDomain: ""
+  #   excludeRegex: "^drafts/"
+  #   # Prefer passing these via `docker run -e ...` instead of this file:
+  #   accessKeyId: ""
+  #   secretAccessKey: ""

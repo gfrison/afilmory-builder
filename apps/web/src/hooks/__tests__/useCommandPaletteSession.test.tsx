@@ -151,7 +151,7 @@ describe("command palette browsing session", () => {
   });
 
   it("does not invent a search return for a direct photo entry", () => {
-    const session = setup("/photos/a");
+    const session = setup("/a");
     session.openPalette();
     session.openPhoto("b");
     expect(session.result.current.restoreFocusOnClose).toBe(false);
@@ -218,7 +218,7 @@ describe("command palette browsing session", () => {
     const first = setup();
     first.openPalette();
     first.openPhoto();
-    const refreshed = setup("/photos/a");
+    const refreshed = setup("/a");
     expect(refreshed.result.current.shouldMount).toBe(false);
     expect(refreshed.result.current.isOpen).toBe(false);
 

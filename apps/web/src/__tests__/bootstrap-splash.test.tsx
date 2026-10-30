@@ -113,7 +113,7 @@ describe("bootstrap splash", () => {
     });
     // The viewer dependency graph is outside this bootstrap/splash contract;
     // still execute its scheduled import and await its completion explicitly.
-    vi.doMock("../pages/(main)/photos/[photoId]/index.tsx", loadPhotoViewer);
+    vi.doMock("../pages/(main)/[photoId]/index.tsx", loadPhotoViewer);
 
     vi.doMock("../data-runtime/manifest-runtime", () => ({
       loadManifestRuntime: vi.fn(() => manifestPromise),

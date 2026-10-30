@@ -182,9 +182,7 @@ describe("build asset SEO helpers", () => {
     expect(result.match(/name="description"/gi)).toHaveLength(1);
     expect(result.match(/rel="canonical"/gi)).toHaveLength(1);
     expect(result.match(/rel="manifest"/gi)).toHaveLength(1);
-    expect(result).toContain(
-      'href="https://example.com/gallery/photos/photo-1/"',
-    );
+    expect(result).toContain('href="https://example.com/gallery/photo-1/"');
     expect(result).toContain('property="og:image:type" content="image/jpeg"');
     expect(result).toContain('property="og:image:width" content="600"');
     expect(result).toContain('property="og:image:height" content="400"');
@@ -199,11 +197,9 @@ describe("build asset SEO helpers", () => {
       unknown
     >;
     expect(imageObject["@type"]).toBe("ImageObject");
-    expect(imageObject.contentUrl).toBe(
-      "https://example.com/gallery/photos/photo-1/",
-    );
+    expect(imageObject.contentUrl).toBe("https://example.com/gallery/photo-1/");
     expect(imageObject.thumbnailUrl).toBe(
-      "https://example.com/thumbnails/photo-1.jpg?x=1&y=2",
+      "https://example.com/gallery/thumbnails/photo-1.jpg?x=1&y=2",
     );
     expect(imageObject.description).toContain("</script><script>");
   });

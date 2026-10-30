@@ -32,7 +32,7 @@ describe("navigation journeys", () => {
     expect(router.state.historyAction).toBe("PUSH");
     n.stepPhoto("b");
     expect(router.state.historyAction).toBe("REPLACE");
-    expect(href()).toBe("/photos/b?sort=asc&tags=travel");
+    expect(href()).toBe("/b?sort=asc&tags=travel");
     expect(n.getPhotoIds()).toEqual(["a", "b"]);
     n.closePhoto();
     expect(router.state.location.key).toBe(source);
@@ -70,7 +70,7 @@ describe("navigation journeys", () => {
   });
 
   it("detail → map → gallery does not reopen detail", () => {
-    const { navigation: n, href } = setup("/photos/a?sort=asc");
+    const { navigation: n, href } = setup("/a?sort=asc");
     n.showMap("a");
     n.showGallery(undefined, true);
     expect(href()).toBe("/?sort=asc");
@@ -78,7 +78,7 @@ describe("navigation journeys", () => {
   });
 
   it("a standalone trailing-slash detail closes by replacement, not browser back", () => {
-    const { navigation: n, router, href } = setup("/photos/a/?sort=asc");
+    const { navigation: n, router, href } = setup("/a/?sort=asc");
     expect(n.getPhotoId()).toBe("a");
     n.closePhoto();
     expect(href()).toBe("/?sort=asc");
@@ -87,7 +87,7 @@ describe("navigation journeys", () => {
 
   it("restored history state without a verified predecessor uses a safe fallback", async () => {
     const { navigation: n, router, href } = setup();
-    await router.navigate("/photos/a", {
+    await router.navigate("/a", {
       replace: true,
       state: {
         afilmoryNavigation: {
@@ -141,12 +141,12 @@ describe("navigation journeys", () => {
     "https://evil.test",
     "//evil.test",
     "/\\evil.test",
-    "/photos/a",
+    "/a",
     "/missing",
   ])("rejects unsafe legacy returnTo %s", (target) => {
     expect(safeDestination(target)).toBeNull();
     const { navigation: n, href } = setup(
-      `/photos/a?returnTo=${encodeURIComponent(target)}`,
+      `/a?returnTo=${encodeURIComponent(target)}`,
     );
     n.closePhoto();
     expect(href()).toBe("/");
@@ -154,7 +154,7 @@ describe("navigation journeys", () => {
 
   it("accepts a legacy map link but removes nested returnTo and unrelated parameters", () => {
     const { navigation: n, href } = setup(
-      `/photos/a?returnTo=${encodeURIComponent("/explore/?mode=photos&returnTo=/photos/a&sort=asc")}`,
+      `/a?returnTo=${encodeURIComponent("/explore/?mode=photos&returnTo=/photos/a&sort=asc")}`,
     );
     n.closePhoto();
     expect(href()).toBe("/explore?mode=photos");
@@ -191,8 +191,9 @@ describe("navigation journeys", () => {
   });
 
   it("parses encoded IDs and fails safely on malformed routes", () => {
-    expect(parsePhotoId("/photos/a%26b%23c/")).toBe("a&b#c");
-    expect(parsePhotoId("/photos/%ZZ")).toBeNull();
-    expect(parsePhotoId("/photos/a/b")).toBeNull();
+    expect(parsePhotoId("/a%26b%23c/")).toBe("a&b#c");
+    expect(parsePhotoId("/%ZZ")).toBeNull();
+    expect(parsePhotoId("/a/b")).toBeNull();
+    expect(parsePhotoId("/explore")).toBeNull();
   });
 });

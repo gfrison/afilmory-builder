@@ -5,8 +5,8 @@ import type { PropsWithChildren } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { Component as PhotoRoute } from "../pages/(main)/[photoId]/index";
 import { Component as MainLayout } from "../pages/(main)/layout";
-import { Component as PhotoRoute } from "../pages/(main)/photos/[photoId]/index";
 import type { AppRuntime } from "../runtime/app-runtime";
 import { createAppRuntime } from "../runtime/app-runtime";
 import { AfilmoryRuntimeProvider } from "../runtime/app-runtime-provider";
@@ -51,13 +51,13 @@ describe("invalid photo detail route", () => {
           element: <MainLayout />,
           children: [
             {
-              path: "photos/:photoId",
+              path: ":photoId",
               element: <PhotoRoute />,
             },
           ],
         },
       ],
-      { initialEntries: ["/photos/missing-photo"] },
+      { initialEntries: ["/missing-photo"] },
     );
 
     const { container } = render(

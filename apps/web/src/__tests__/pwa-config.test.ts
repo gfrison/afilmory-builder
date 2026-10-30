@@ -119,12 +119,12 @@ describe("PWA runtime caching", () => {
       expect.arrayContaining(Object.values(AFILMORY_RUNTIME_CACHE_NAMES)),
     );
     expect(configuredCacheNames).not.toContain("afilmory-videos-v1");
-    expect(options.workbox.globIgnores).toContain("photos/**/index.html");
+    expect(options.workbox.globIgnores).toContain("*/index.html");
     expect(
       options.workbox.navigateFallbackDenylist.some((pattern) =>
-        pattern.test("/photos/photo-1/"),
+        pattern.test("/photo-1/"),
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("keeps static documents, media, and custom local originals out of SPA navigation fallback", () => {
@@ -132,7 +132,7 @@ describe("PWA runtime caching", () => {
     const isDenied = (pathname: string) =>
       denylist.some((pattern) => pattern.test(pathname));
 
-    expect(isDenied("/photos/photo-1/")).toBe(true);
+    expect(isDenied("/photo-1/")).toBe(false);
     expect(isDenied("/media/originals/trip/photo.jpg")).toBe(true);
     expect(isDenied("/feed.xml")).toBe(true);
     expect(isDenied("/feed.xml?cache-bust=1")).toBe(true);
@@ -141,7 +141,7 @@ describe("PWA runtime caching", () => {
     expect(isDenied("/sw.js?v=2")).toBe(true);
     expect(isDenied("/assets/app.js")).toBe(true);
     expect(isDenied("/photo.jpg?download=1")).toBe(true);
-    expect(isDenied("/photos?source=share")).toBe(true);
+    expect(isDenied("/photos?source=share")).toBe(false);
     expect(isDenied("/media/originals?listing=1")).toBe(true);
     expect(isDenied("/map")).toBe(false);
     expect(isDenied("/map?region=asia")).toBe(false);

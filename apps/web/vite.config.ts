@@ -76,7 +76,11 @@ const staticWebBuildPlugins: PluginOption[] = [
     baseUrl: env.LOCAL_PHOTOS_BASE_URL,
   }),
 
-  createAfilmoryPwaPlugin(siteConfig, env.LOCAL_PHOTOS_BASE_URL),
+  createAfilmoryPwaPlugin(
+    siteConfig,
+    env.LOCAL_PHOTOS_BASE_URL,
+    env.BASE_PATH === "/" ? "" : env.BASE_PATH,
+  ),
 
   buildAssetsPlugin(
     {
@@ -125,7 +129,7 @@ export default defineConfig(async ({ command, mode }) => {
   }
 
   return {
-    base: "/",
+    base: env.BASE_PATH === "/" ? "/" : `${env.BASE_PATH}/`,
     // Parallel demo and browser-test servers must not replace each other's
     // optimized dependencies and trigger "Outdated Optimize Dep" reloads.
     cacheDir: isolatedMode

@@ -14,6 +14,7 @@ import {
   parsePhotoId,
   photoDestination,
   safeDestination,
+  stripBasePath,
 } from "./routes";
 
 type RouterPort = Pick<
@@ -298,7 +299,7 @@ export class NavigationController {
       typeof update === "function" ? update(this.getGallerySettings()) : update;
     if (
       galleryDestination(next).search === this.getGallerySearch() &&
-      this.getLocation().pathname === "/"
+      stripBasePath(this.getLocation().pathname) === "/"
     )
       return;
     this.showGallery(next);

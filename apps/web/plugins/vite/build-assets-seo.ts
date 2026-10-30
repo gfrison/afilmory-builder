@@ -58,7 +58,12 @@ function siteRootUrl(url: string): string {
 
 export function absoluteHttpUrl(value: string, baseUrl: string): string | null {
   try {
-    const url = new URL(value, siteRootUrl(baseUrl));
+    // Root-relative manifest URLs (e.g. /thumbnails/..) must resolve under the
+    // site base path, so resolve them against the site root, not the origin.
+    const target = /^https?:\/\//i.test(value)
+      ? value
+      : value.replace(/^\/+/, "");
+    const url = new URL(target, siteRootUrl(baseUrl));
     return (url.protocol === "http:" || url.protocol === "https:") &&
       !url.username &&
       !url.password
@@ -199,7 +204,7 @@ export function createPhotoPageHtml(
   config: SiteConfig,
 ): string {
   const baseUrl = normalizeBaseUrl(config.url);
-  const canonicalUrl = `${baseUrl}/photos/${encodeURIComponent(photo.id)}/`;
+  const canonicalUrl = `${baseUrl}/${encodeURIComponent(photo.id)}/`;
   const thumbnailUrl =
     absoluteHttpUrl(photo.thumbnailUrl, baseUrl) ?? canonicalUrl;
   const originalUrl =
@@ -324,7 +329,7 @@ export function generateSitemap(
   const photoUrls = photos
     .map((photo) => {
       const lastModified = validIsoDate(photo.lastModified, photo.dateTaken);
-      const photoUrl = `${baseUrl}/photos/${encodeURIComponent(photo.id)}/`;
+      const photoUrl = `${baseUrl}/${encodeURIComponent(photo.id)}/`;
       return `  <url>
     <loc>${escapeXml(photoUrl)}</loc>${lastModified ? `\n    <lastmod>${lastModified}</lastmod>` : ""}
     <changefreq>monthly</changefreq>

@@ -109,13 +109,14 @@ export function dataInjectPlugin(): Plugin {
   });
   const buildInfoScriptContent = buildRuntimeAssignment("build", buildMetadata);
   const parser = new DOMParser();
+  const manifestBasePrefix = env.BASE_PATH === "/" ? "" : env.BASE_PATH;
   const getBuildManifestAssetPublicPath = () => {
     if (!emittedManifestAssetFileName) {
       throw new Error(
         "[data-inject] External manifest asset path was not initialized during build.",
       );
     }
-    return `/${emittedManifestAssetFileName}`;
+    return `${manifestBasePrefix}/${emittedManifestAssetFileName}`;
   };
 
   return {

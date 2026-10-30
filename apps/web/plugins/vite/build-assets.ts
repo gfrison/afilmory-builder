@@ -26,6 +26,17 @@ export {
   injectHomeMetadata,
 } from "./build-assets-seo";
 
+// Photo shells are written at the site root, so their ids must not shadow the
+// top-level application/asset paths that ship alongside them.
+const RESERVED_PHOTO_SHELL_IDS = new Set([
+  "assets",
+  "thumbnails",
+  "originals",
+  "vendor",
+  "explore",
+  "manifest",
+]);
+
 interface OGImagePluginOptions {
   title?: string;
   description?: string;
@@ -136,7 +147,15 @@ export function buildAssetsPlugin(
         );
         // Keep file-descriptor usage bounded for very large libraries.
         for (const photo of staticPhotos) {
-          const photoDirectory = path.join(outputDirectory, "photos", photo.id);
+          // Photo shells live at the site root (/<id>/) so ids must not collide
+          // with reserved top-level paths served alongside them.
+          if (RESERVED_PHOTO_SHELL_IDS.has(photo.id.toLowerCase())) {
+            this.error(
+              `Photo id "${photo.id}" collides with a reserved application path; rename the source file.`,
+            );
+            return;
+          }
+          const photoDirectory = path.join(outputDirectory, photo.id);
           await mkdir(photoDirectory, { recursive: true });
           await writeFile(
             path.join(photoDirectory, "index.html"),

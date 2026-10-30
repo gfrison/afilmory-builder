@@ -65,13 +65,18 @@ function escapeRegExp(value: string): string {
 
 export function createNavigateFallbackDenylist(
   localPhotosBaseUrl = "/originals",
+  basePath = "",
 ): RegExp[] {
   const normalizedLocalBase = localPhotosBaseUrl.replace(/\/+$/, "");
+  const b = escapeRegExp(basePath.replace(/\/+$/, ""));
   return [
-    /^\/photos(?:\/|\?|$)/,
-    new RegExp(`^${escapeRegExp(normalizedLocalBase)}(?:/|\\?|$)`),
-    /^\/(?:assets|thumbnails|vendor)(?:\/|\?|$)/,
-    /^\/(?:feed\.xml|sitemap\.xml|manifest\.webmanifest|sw\.js|registerSW\.js|workbox-[^/]+\.js)(?:\?|$)/,
+    new RegExp(
+      `^${escapeRegExp(basePath.replace(/\/+$/, "") + normalizedLocalBase)}(?:/|\\?|$)`,
+    ),
+    new RegExp(`^${b}/(?:assets|thumbnails|vendor)(?:/|\\?|$)`),
+    new RegExp(
+      `^${b}/(?:feed\\.xml|sitemap\\.xml|manifest\\.webmanifest|sw\\.js|registerSW\\.js|workbox-[^/]+\\.js)(?:\\?|$)`,
+    ),
     /\.[\da-z]{1,16}(?:\?|$)/i,
   ];
 }
@@ -79,10 +84,12 @@ export function createNavigateFallbackDenylist(
 export function createAfilmoryPwaPlugin(
   siteConfig: SiteConfig,
   localPhotosBaseUrl = "/originals",
+  basePath = "",
 ) {
+  const scopePath = basePath ? `${basePath}/` : "/";
   return VitePWA({
-    base: "/",
-    scope: "/",
+    base: scopePath,
+    scope: scopePath,
     injectRegister: false,
     registerType: "autoUpdate",
     includeAssets: ["favicon.ico", "masked-icon.svg"],
@@ -93,8 +100,8 @@ export function createAfilmoryPwaPlugin(
       theme_color: "#1c1c1e",
       background_color: "#1c1c1e",
       display: "standalone",
-      scope: "/",
-      start_url: "/",
+      scope: scopePath,
+      start_url: scopePath,
       icons: [
         {
           src: "android-chrome-192x192.png",
@@ -119,8 +126,10 @@ export function createAfilmoryPwaPlugin(
       // NavigationRoute otherwise returns index.html for every same-origin
       // navigation, swallowing static photo shells, local originals, feeds,
       // sitemaps, and assets opened in a new tab after the SW takes control.
-      navigateFallbackDenylist:
-        createNavigateFallbackDenylist(localPhotosBaseUrl),
+      navigateFallbackDenylist: createNavigateFallbackDenylist(
+        localPhotosBaseUrl,
+        basePath,
+      ),
       globIgnores: [
         "**/*.{jpg,jpeg}",
         "**/vendor/heic-*.js",
@@ -133,7 +142,7 @@ export function createAfilmoryPwaPlugin(
         // Photo route shells remain independently crawlable static documents,
         // but precaching every photo would make the service worker grow with
         // the entire library. Navigation uses the network/static host instead.
-        "photos/**/index.html",
+        "*/index.html",
         "**/*.map",
       ],
       // Workbox first discovers build assets, then this build-time transform

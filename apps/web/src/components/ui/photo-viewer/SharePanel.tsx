@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { buildPhotoDetailPathname } from "~/lib/photo-detail-route";
+import { withBasePath } from "~/lib/public-base";
 import type { PhotoManifest } from "~/types/photo";
 
 import { copyTextToClipboard } from "./clipboard-text";
@@ -92,7 +93,7 @@ export const SharePanel = ({ photo, trigger, blobSrc }: SharePanelProps) => {
   ];
 
   const handleNativeShare = useCallback(async () => {
-    const shareUrl = `${window.location.origin}${buildPhotoDetailPathname(photo.id)}`;
+    const shareUrl = `${window.location.origin}${withBasePath(buildPhotoDetailPathname(photo.id))}`;
     const shareTitle = photo.title || t("photo.share.default.title");
     const shareText = t("photo.share.text", { title: shareTitle });
     const sharePayload = {
@@ -144,7 +145,7 @@ export const SharePanel = ({ photo, trigger, blobSrc }: SharePanelProps) => {
   const handleCopyLink = useCallback(async () => {
     if (
       await copyTextToClipboard(
-        `${window.location.origin}${buildPhotoDetailPathname(photo.id)}`,
+        `${window.location.origin}${withBasePath(buildPhotoDetailPathname(photo.id))}`,
       )
     ) {
       toast.success(t("photo.share.link.copied"));
@@ -158,7 +159,7 @@ export const SharePanel = ({ photo, trigger, blobSrc }: SharePanelProps) => {
   const handleSocialShare = useCallback(
     (url: string) => {
       const shareUrl = encodeURIComponent(
-        `${window.location.origin}${buildPhotoDetailPathname(photo.id)}`,
+        `${window.location.origin}${withBasePath(buildPhotoDetailPathname(photo.id))}`,
       );
       const defaultTitle = t("photo.share.default.title");
       const shareTitle = encodeURIComponent(photo.title || defaultTitle);

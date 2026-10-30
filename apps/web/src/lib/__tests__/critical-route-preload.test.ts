@@ -21,7 +21,7 @@ describe("critical-route-preload", () => {
 
     await installCriticalRoutePreloads({
       "./pages/(main)/layout.tsx": loadGallery,
-      "./pages/(main)/photos/[photoId]/index.tsx": loadPhotoDetail,
+      "./pages/(main)/[photoId]/index.tsx": loadPhotoDetail,
     });
 
     expect(loadGallery).toHaveBeenCalledTimes(1);

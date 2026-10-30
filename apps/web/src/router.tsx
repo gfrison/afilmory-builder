@@ -9,20 +9,26 @@ import type { AppRuntime } from "./runtime/app-runtime";
 
 const tree = buildGlobRoutes(globTree);
 
+// Vite injects the configured `base` here; strip the trailing slash for React Router.
+const basename = import.meta.env.BASE_URL.replace(/\/$/, "") || "/";
+
 export const createAppRouter = (runtime: AppRuntime) => {
-  const router = createBrowserRouter([
-    {
-      path: "/",
-      element: <App runtime={runtime} />,
-      children: tree,
-      errorElement: <ErrorElement />,
-      hydrateFallbackElement: <></>,
-    },
-    {
-      path: "*",
-      element: <NotFound />,
-    },
-  ]);
+  const router = createBrowserRouter(
+    [
+      {
+        path: "/",
+        element: <App runtime={runtime} />,
+        children: tree,
+        errorElement: <ErrorElement />,
+        hydrateFallbackElement: <></>,
+      },
+      {
+        path: "*",
+        element: <NotFound />,
+      },
+    ],
+    { basename },
+  );
 
   runtime.navigation.bind(router);
   return router;

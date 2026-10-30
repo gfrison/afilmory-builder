@@ -124,26 +124,28 @@ export const MasonryHeaderMasonryItem = ({
       <div className="flex items-center gap-3.5 px-4 pt-5 pb-2 lg:flex-col lg:gap-3 lg:px-5 lg:pt-6 lg:pb-3 lg:text-center">
         <div className="flex shrink-0 justify-center">
           <div className="af-gallery-avatar relative inline-flex rounded-full p-1">
-            {siteConfig.author.avatar && (
-              <AvatarPrimitive.Root className="inline-flex size-12 items-center justify-center overflow-hidden rounded-full lg:size-14">
-                <AvatarPrimitive.Image
-                  src={siteConfig.author.avatar}
-                  className="size-full object-cover"
-                  alt={siteConfig.author.name || siteConfig.name}
-                />
-                <AvatarPrimitive.Fallback className="size-full">
-                  <div className="bg-ui-subtle size-full" />
-                </AvatarPrimitive.Fallback>
-              </AvatarPrimitive.Root>
-            )}
-            {!siteConfig.author.avatar && (
-              <div className="bg-accent text-accent-content inline-flex size-12 items-center justify-center rounded-full lg:size-14">
-                <i
-                  className="i-mingcute-camera-2-line text-2xl"
-                  aria-hidden="true"
-                />
-              </div>
-            )}
+            <a href={siteConfig.author.url}>
+              {siteConfig.author.avatar && (
+                <AvatarPrimitive.Root className="inline-flex size-12 items-center justify-center overflow-hidden rounded-full lg:size-14">
+                  <AvatarPrimitive.Image
+                    src={siteConfig.author.avatar}
+                    className="size-full object-cover"
+                    alt={siteConfig.author.name || siteConfig.name}
+                  />
+                  <AvatarPrimitive.Fallback className="size-full">
+                    <div className="bg-ui-subtle size-full" />
+                  </AvatarPrimitive.Fallback>
+                </AvatarPrimitive.Root>
+              )}
+              {!siteConfig.author.avatar && (
+                <div className="bg-accent text-accent-content inline-flex size-12 items-center justify-center rounded-full lg:size-14">
+                  <i
+                    className="i-mingcute-camera-2-line text-2xl"
+                    aria-hidden="true"
+                  />
+                </div>
+              )}
+            </a>
           </div>
         </div>
 

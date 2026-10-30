@@ -7,18 +7,15 @@ describe("buildGlobRoutes", () => {
     const photoIndexLoader = vi.fn();
 
     const routes = buildGlobRoutes({
-      "./pages/(main)/photos/[photoId]/index.tsx": photoIndexLoader,
+      "./pages/(main)/[photoId]/index.tsx": photoIndexLoader,
     });
 
     expect(routes).toHaveLength(1);
     expect(routes[0]?.path).toBe("");
     expect(routes[0]?.lazy).toBeUndefined();
-    expect(routes[0]?.children?.[0]?.path).toBe("photos");
-    expect(routes[0]?.children?.[0]?.children?.[0]?.path).toBe(":photoId");
-    expect(routes[0]?.children?.[0]?.children?.[0]?.children?.[0]?.path).toBe(
-      "",
-    );
-    expect(routes[0]?.children?.[0]?.children?.[0]?.children?.[0]?.lazy).toBe(
+    expect(routes[0]?.children?.[0]?.path).toBe(":photoId");
+    expect(routes[0]?.children?.[0]?.children?.[0]?.path).toBe("");
+    expect(routes[0]?.children?.[0]?.children?.[0]?.lazy).toBe(
       photoIndexLoader,
     );
   });

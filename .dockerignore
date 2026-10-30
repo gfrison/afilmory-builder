@@ -1,0 +1,16 @@
+.git
+**/node_modules
+apps/web/dist
+apps/web/public/thumbnails
+apps/web/public/originals
+generated
+_site
+photos
+photos-wm
+coverage
+**/.vite
+**/.turbo
+**/*.log
+.env
+.env.*
+!.env.template

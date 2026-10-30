@@ -75,7 +75,7 @@ describe("SharePanel keyboard actions", () => {
     fireEvent.keyDown(copyLink, { key: "Enter" });
     await waitFor(() =>
       expect(copyTextToClipboard).toHaveBeenCalledWith(
-        `${window.location.origin}/photos/photo`,
+        `${window.location.origin}/photo`,
       ),
     );
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());

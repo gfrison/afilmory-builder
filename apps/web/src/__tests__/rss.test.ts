@@ -120,7 +120,7 @@ describe("generateRSSFeed XML safety", () => {
     expect(xml).toContain(
       `<lastBuildDate>${new Date("2025-02-03T04:05:06.000Z").toUTCString()}</lastBuildDate>`,
     );
-    expect(xml).toContain("<link>https://example.com/photos/photo-1/</link>");
+    expect(xml).toContain("<link>https://example.com/photo-1/</link>");
   });
 
   it("escapes author metadata that contains XML-reserved URL characters", () => {

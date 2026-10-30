@@ -301,9 +301,7 @@ describe("viewer photo resolution", () => {
   });
 
   it("labels an unfiltered direct link as all photos", () => {
-    runtime.navigation = createTestNavigation(
-      "/photos/hidden-photo",
-    ).navigation;
+    runtime.navigation = createTestNavigation("/hidden-photo").navigation;
     const sequence = getViewerSequence(runtime, "hidden-photo");
     expect(sequence.source).toBe("all");
     expect(sequence.photos.map((photo) => photo.id)).toEqual([
@@ -325,7 +323,7 @@ describe("viewer photo resolution", () => {
 
   it("labels full-library fallback truthfully after stepping back into a filter match", () => {
     runtime.navigation = createTestNavigation(
-      "/photos/hidden-photo?tags=keep",
+      "/hidden-photo?tags=keep",
     ).navigation;
     const { result } = renderHook(
       () => ({

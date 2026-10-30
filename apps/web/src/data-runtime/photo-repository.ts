@@ -7,6 +7,7 @@ import {
   appendMediaVersion,
   getVersionedOriginalUrl,
 } from "~/lib/media-version-url";
+import { withBasePath } from "~/lib/public-base";
 import type { PhotoManifest } from "~/types/photo";
 import type { DeepReadonly } from "~/types/readonly";
 
@@ -80,18 +81,21 @@ export class PhotoRepository {
     this.photos = freezeSnapshot(
       manifest.photos.map((input) => {
         const photo = ownSnapshot(input);
-        const originalUrl = getVersionedOriginalUrl(photo);
+        const originalUrl = withBasePath(getVersionedOriginalUrl(photo));
         return {
           ...photo,
           originalUrl,
+          thumbnailUrl: withBasePath(photo.thumbnailUrl),
           ...(photo.video?.type === "live-photo"
             ? {
                 video: {
                   ...photo.video,
-                  videoUrl: appendMediaVersion(
-                    photo.video.videoUrl,
-                    photo.video.version ||
-                      `${manifest.generatedAt}:${photo.video.s3Key}:video`,
+                  videoUrl: withBasePath(
+                    appendMediaVersion(
+                      photo.video.videoUrl,
+                      photo.video.version ||
+                        `${manifest.generatedAt}:${photo.video.s3Key}:video`,
+                    ),
                   ),
                 },
               }
@@ -305,7 +309,10 @@ export class PhotoRepository {
     );
     try {
       const response = await abortable(
-        this.fetcher(url, buildManifestRequestInit(controller.signal)),
+        this.fetcher(
+          withBasePath(url),
+          buildManifestRequestInit(controller.signal),
+        ),
         controller.signal,
       );
       throwIfAborted(controller.signal);

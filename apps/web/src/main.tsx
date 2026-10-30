@@ -48,11 +48,10 @@ function renderApp(node: ReactNode) {
 
 const criticalRoutePreloadModules = import.meta.glob([
   "./pages/(main)/layout.tsx",
-  "./pages/(main)/photos/[photoId]/index.tsx",
+  "./pages/(main)/[photoId]/index.tsx",
 ]);
 
-const PHOTO_VIEWER_ROUTE_MODULE_KEY =
-  "./pages/(main)/photos/[photoId]/index.tsx";
+const PHOTO_VIEWER_ROUTE_MODULE_KEY = "./pages/(main)/[photoId]/index.tsx";
 
 // 首屏渲染后、浏览器空闲时预热 viewer（照片详情）路由，把它的重依赖
 // （WebGLImageViewer / maplibre / swiper / zoom）移出首屏关键路径，避免拖慢 LCP。

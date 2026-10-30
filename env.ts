@@ -70,6 +70,17 @@ export const env = createEnv({
       )
       .default("/originals"),
 
+    // Public base path for subpath deployments (e.g. "/photos"); "/" for root.
+    BASE_PATH: z
+      .string()
+      .trim()
+      .transform((value) => (value === "/" ? "/" : value.replace(/\/+$/, "")))
+      .refine((value) => value === "/" || isPortablePublicPath(value), {
+        message:
+          'BASE_PATH must be "/" or a root-relative path of portable ASCII segments',
+      })
+      .default("/"),
+
     // S3 storage config (required when PHOTO_STORAGE_PROVIDER=s3)
     S3_REGION: z.string().default("us-east-1"),
     // May be empty when building the frontend; the builder validates strictly at runtime
