@@ -41,8 +41,9 @@ export function parsePhotoId(pathname: string): string | null {
   return RESERVED_ROOT_SEGMENTS.has(id.toLowerCase()) ? null : id;
 }
 
+// Router static segments match case-insensitively, so /EXPLORE is the map too.
 export const isMapPath = (pathname: string) =>
-  /^\/explore\/?$/.test(stripBasePath(pathname));
+  /^\/explore\/?$/i.test(stripBasePath(pathname));
 export const gallerySearch = (search: string) =>
   buildGalleryFilterSearch("", getGalleryFiltersFromSearch(search));
 export const galleryDestination = (

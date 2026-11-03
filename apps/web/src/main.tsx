@@ -12,6 +12,7 @@ import { loadManifestRuntime } from "./data-runtime/manifest-runtime";
 import { initialLanguageReady } from "./i18n";
 import { installCriticalRoutePreloads } from "./lib/critical-route-preload";
 import { markStartup } from "./lib/startup-metrics";
+import { loadCommandPalette } from "./modules/gallery/command-palette/load";
 import { createAppRouter } from "./router";
 import { createAppRuntime } from "./runtime/app-runtime";
 
@@ -46,10 +47,13 @@ function renderApp(node: ReactNode) {
   });
 }
 
-const criticalRoutePreloadModules = import.meta.glob([
-  "./pages/(main)/layout.tsx",
-  "./pages/(main)/[photoId]/index.tsx",
-]);
+// Explicit loaders keep the photo route's literal brackets out of glob syntax.
+const criticalRoutePreloadModules = {
+  "./pages/(main)/layout.tsx": () => import("./pages/(main)/layout"),
+  "./pages/(main)/[photoId]/index.tsx": () =>
+    import("./pages/(main)/[photoId]/index"),
+  "./pages/explore/index.tsx": () => import("./pages/explore/index"),
+};
 
 const PHOTO_VIEWER_ROUTE_MODULE_KEY = "./pages/(main)/[photoId]/index.tsx";
 
@@ -88,12 +92,16 @@ async function bootstrap() {
     markStartup("critical-routes-start");
     const criticalRoutesReady = installCriticalRoutePreloads(
       criticalRoutePreloadModules,
+      window.location.pathname,
     ).then(() => {
       markStartup("critical-routes-ready");
     });
     const startupTasks: Promise<unknown>[] = [
       loadManifestRuntime(),
       criticalRoutesReady,
+      // Search is a core gallery action: prepare its code before the first
+      // click, in parallel with the gallery rather than serializing bootstrap.
+      loadCommandPalette(),
       // 检测语言的翻译包与 manifest / 关键路由并行加载（en 为同步空操作），
       // 首次渲染前就绪，非英文用户不会闪现英文兜底文案。
       initialLanguageReady,

@@ -72,6 +72,11 @@ describe("bootstrap splash", () => {
     const criticalRoutesPromise = new Promise<void>((resolve) => {
       resolveCriticalRoutes = resolve;
     });
+    let resolveSearch!: () => void;
+    const searchReady = new Promise<void>((resolve) => {
+      resolveSearch = resolve;
+    });
+    const loadCommandPalette = vi.fn(() => searchReady);
     const createAppRuntime = vi.fn((options) => ({
       browser: window.__AFILMORY__,
       bodyScrollLock: {
@@ -113,7 +118,7 @@ describe("bootstrap splash", () => {
     });
     // The viewer dependency graph is outside this bootstrap/splash contract;
     // still execute its scheduled import and await its completion explicitly.
-    vi.doMock("../pages/(main)/[photoId]/index.tsx", loadPhotoViewer);
+    vi.doMock("../pages/(main)/[photoId]/index", loadPhotoViewer);
 
     vi.doMock("../data-runtime/manifest-runtime", () => ({
       loadManifestRuntime: vi.fn(() => manifestPromise),
@@ -123,6 +128,9 @@ describe("bootstrap splash", () => {
     }));
     vi.doMock("../lib/critical-route-preload", () => ({
       installCriticalRoutePreloads,
+    }));
+    vi.doMock("../modules/gallery/command-palette/load", () => ({
+      loadCommandPalette,
     }));
     vi.doMock("../router", () => ({
       createAppRouter,
@@ -155,6 +163,7 @@ describe("bootstrap splash", () => {
       // Also release pending test promises if an earlier assertion fails.
       resolveManifest(manifest);
       resolveCriticalRoutes();
+      resolveSearch();
       await importPromise;
       await flushIdlePreloads();
     };
@@ -166,9 +175,12 @@ describe("bootstrap splash", () => {
     expect(screen.getByRole("status", { name: "Loading" })).not.toBeNull();
     expect(screen.queryByTestId("router-app")).toBeNull();
     expect(createAppRuntime).not.toHaveBeenCalled();
-    await waitFor(() => {
-      expect(markStartup).toHaveBeenCalledWith("manifest-start", undefined);
-    });
+    await waitFor(
+      () => {
+        expect(markStartup).toHaveBeenCalledWith("manifest-start", undefined);
+      },
+      { timeout: 4000 },
+    );
 
     await act(async () => {
       resolveManifest(manifest);
@@ -180,6 +192,11 @@ describe("bootstrap splash", () => {
 
     await act(async () => {
       resolveCriticalRoutes();
+    });
+    expect(loadCommandPalette).toHaveBeenCalledOnce();
+    expect(screen.queryByTestId("router-app")).toBeNull();
+    await act(async () => {
+      resolveSearch();
       await importPromise;
     });
 

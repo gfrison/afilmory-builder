@@ -1,6 +1,15 @@
+import type { UserConfig } from "vite";
 import { describe, expect, it } from "vitest";
 
-import { findStaticVendorChunkCycle } from "./deps";
+import {
+  getCriticalPrecacheFiles,
+  setCriticalPrecacheFiles,
+} from "./__internal__/precache-policy";
+import { dependencyChunkGroups } from "./chunks";
+import {
+  createDependencyChunksPlugin,
+  findStaticVendorChunkCycle,
+} from "./deps";
 
 describe("findStaticVendorChunkCycle", () => {
   it("reports a static cycle spanning multiple vendor chunks", () => {
@@ -35,14 +44,223 @@ describe("findStaticVendorChunkCycle", () => {
     ]);
   });
 
-  it("allows acyclic graphs", () => {
+  it.each(["ui", "map", "observers", "file-type"])(
+    "allows acyclic graphs containing %s",
+    (vendor) => {
+      expect(
+        findStaticVendorChunkCycle(
+          new Map([
+            ["assets/entry.js", [`vendor/${vendor}-a.js`]],
+            [`vendor/${vendor}-a.js`, ["external.js"]],
+          ]),
+        ),
+      ).toBeNull();
+    },
+  );
+
+  it("allows an ordinary cycle overlapping a safe single-vendor cycle", () => {
     expect(
       findStaticVendorChunkCycle(
         new Map([
-          ["assets/entry.js", ["vendor/ui.js"]],
-          ["vendor/ui.js", []],
+          ["assets/root.js", ["assets/shared.js", "vendor/ui-a.js"]],
+          ["assets/shared.js", ["assets/root.js"]],
+          ["vendor/ui-a.js", ["assets/shared.js"]],
         ]),
       ),
     ).toBeNull();
   });
+
+  it("does not combine separate safe vendor cycles linked in one direction", () => {
+    expect(
+      findStaticVendorChunkCycle(
+        new Map([
+          ["vendor/ui-a.js", ["assets/a.js", "vendor/ui-b.js"]],
+          ["assets/a.js", ["vendor/ui-a.js"]],
+          ["vendor/ui-b.js", ["assets/b.js"]],
+          ["assets/b.js", ["vendor/ui-b.js"]],
+        ]),
+      ),
+    ).toBeNull();
+  });
+
+  it.each(["file-type", "map", "observers"])(
+    "rejects a sensitive %s self-loop",
+    (vendor) => {
+      const fileName = `vendor/${vendor}-a.js`;
+      expect(
+        findStaticVendorChunkCycle(new Map([[fileName, [fileName]]])),
+      ).toEqual([fileName, fileName]);
+    },
+  );
+
+  it("rejects the MapLibre vendor/shared-style initialization cycle", () => {
+    expect(
+      findStaticVendorChunkCycle(
+        new Map([
+          ["assets/explore.js", ["vendor/map-a.js", "assets/style.js"]],
+          ["vendor/map-a.js", ["assets/style.js"]],
+          ["assets/style.js", ["vendor/map-a.js"]],
+        ]),
+      ),
+    ).toEqual(["vendor/map-a.js", "assets/style.js", "vendor/map-a.js"]);
+  });
+
+  it("rejects observer hooks calling a CommonJS initializer in the viewer route which imports them", () => {
+    expect(
+      findStaticVendorChunkCycle(
+        new Map([
+          ["assets/photo.js", ["vendor/observers-a.js"]],
+          ["vendor/observers-a.js", ["assets/photo.js"]],
+        ]),
+      ),
+    ).toEqual(["assets/photo.js", "vendor/observers-a.js", "assets/photo.js"]);
+  });
+
+  it.each(["map", "observers"])(
+    "rejects a %s cycle hidden behind an earlier ordinary cycle",
+    (vendor) => {
+      const imports = new Map([
+        ["assets/root.js", ["assets/shared.js", `vendor/${vendor}-a.js`]],
+        ["assets/shared.js", ["assets/root.js"]],
+        [`vendor/${vendor}-a.js`, ["assets/shared.js"]],
+      ]);
+
+      expect(findStaticVendorChunkCycle(imports)).toEqual([
+        "assets/root.js",
+        `vendor/${vendor}-a.js`,
+        "assets/shared.js",
+        "assets/root.js",
+      ]);
+    },
+  );
+
+  it("returns real closed edges through both vendors when cycles share a junction", () => {
+    const imports = new Map([
+      [
+        "assets/root.js",
+        ["assets/shared.js", "vendor/ui-a.js", "vendor/ui-b.js"],
+      ],
+      ["assets/shared.js", ["assets/root.js"]],
+      ["vendor/ui-a.js", ["assets/shared.js"]],
+      ["vendor/ui-b.js", ["assets/shared.js"]],
+    ]);
+    const cycle = findStaticVendorChunkCycle(imports);
+
+    expect(cycle).not.toBeNull();
+    if (!cycle) throw new Error("Missing vendor cycle");
+    expect(cycle[0]).toBe(cycle.at(-1));
+    expect(cycle).toEqual(
+      expect.arrayContaining(["vendor/ui-a.js", "vendor/ui-b.js"]),
+    );
+    for (let index = 1; index < cycle.length; index++) {
+      expect(imports.get(cycle[index - 1])).toContain(cycle[index]);
+    }
+  });
+});
+
+it("keeps eagerly initialized dependency families in the same vendor group", async () => {
+  const config: UserConfig = {};
+  const plugin = createDependencyChunksPlugin(dependencyChunkGroups);
+  if (typeof plugin.config !== "function")
+    throw new Error("Missing config hook");
+  await plugin.config.call({} as never, config, {
+    command: "build",
+    mode: "production",
+  });
+  const output = config.build?.rolldownOptions?.output;
+  const outputConfig = Array.isArray(output) ? output[0] : output;
+  const codeSplitting = outputConfig?.codeSplitting;
+  if (typeof codeSplitting !== "object")
+    throw new Error("Missing chunk groups");
+  const group = codeSplitting.groups?.[0];
+  const getChunkName = group?.name;
+  if (typeof getChunkName !== "function")
+    throw new Error("Missing chunk group callback");
+  const chunkingContext = { getModuleInfo: () => null };
+
+  for (const packagePath of [
+    "maplibre-gl/dist/maplibre-gl.mjs",
+    "react-map-gl/dist/maplibre.js",
+    "@vis.gl/react-maplibre/dist/index.js",
+    "@vis.gl/react-maplibre/dist/components/map.js",
+  ]) {
+    expect(
+      getChunkName(
+        `/repo/node_modules/.pnpm/package/node_modules/${packagePath}`,
+        chunkingContext,
+      ),
+    ).toBe("vendor/map");
+  }
+  // The deep-photo entry can win the initial parallel import race. Keeping the
+  // eager CommonJS wrapper with usehooks-ts prevents a vendor -> route back edge.
+  for (const packagePath of [
+    "usehooks-ts/dist/index.js",
+    "lodash.debounce/index.js",
+  ]) {
+    expect(
+      getChunkName(
+        `/repo/node_modules/.pnpm/package/node_modules/${packagePath}`,
+        chunkingContext,
+      ),
+    ).toBe("vendor/observers");
+  }
+  expect(group?.includeDependenciesRecursively).toBe(false);
+  expect(
+    getChunkName("/repo/apps/web/src/lib/map/maplibre.ts", chunkingContext),
+  ).toBeNull();
+});
+
+it("registers search and late-rendered static dependencies before generateBundle", async () => {
+  const plugin = createDependencyChunksPlugin(dependencyChunkGroups);
+  const { renderChunk } = plugin;
+  if (typeof renderChunk !== "function")
+    throw new Error("Missing renderChunk hook");
+  const render = async (
+    fileName: string,
+    imports: string[],
+    facadeModuleId: string | null = null,
+    isEntry = false,
+  ) => {
+    await renderChunk.call(
+      {} as never,
+      "",
+      { fileName, imports, facadeModuleId, isEntry } as never,
+      {} as never,
+      {} as never,
+    );
+  };
+  setCriticalPrecacheFiles([]);
+  try {
+    await render("assets/entry.js", [], null, true);
+    await render(
+      "assets/gallery.js",
+      [],
+      "/repo/apps/web/src/pages/(main)/layout.tsx",
+    );
+    await render(
+      "assets/search.js",
+      ["vendor/observers-a.js"],
+      "C:\\repo\\apps\\web\\src\\modules\\gallery\\command-palette\\CommandPalette.tsx",
+    );
+    // Workbox may consume the graph before generateBundle. Search is already
+    // a bootstrap requirement; its later-rendered dependency closure must join it.
+    await render("vendor/observers-a.js", ["vendor/runtime-a.js"]);
+    await render("vendor/runtime-a.js", []);
+    await render(
+      "assets/explore.js",
+      ["vendor/map-a.js"],
+      "/repo/apps/web/src/pages/explore/index.tsx",
+    );
+    expect(new Set(getCriticalPrecacheFiles())).toEqual(
+      new Set([
+        "assets/entry.js",
+        "assets/gallery.js",
+        "assets/search.js",
+        "vendor/observers-a.js",
+        "vendor/runtime-a.js",
+      ]),
+    );
+  } finally {
+    setCriticalPrecacheFiles([]);
+  }
 });
