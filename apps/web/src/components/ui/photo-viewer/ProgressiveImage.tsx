@@ -1,7 +1,14 @@
 import { clsxm, Thumbhash } from "@afilmory/ui";
 import { WebGLImageViewer } from "@afilmory/webgl-viewer";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type { ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 import { useMediaQuery } from "usehooks-ts";
@@ -13,6 +20,7 @@ import {
   hasLoadedThumbnail,
   markThumbnailLoaded,
 } from "~/lib/thumbnail-load-cache";
+import { useAfilmoryRuntime } from "~/runtime/app-runtime";
 
 import { SlidingNumber } from "../number/SlidingNumber";
 import { PHOTO_VIEWER_FIT_SCALE } from "./animations/utils";
@@ -28,7 +36,10 @@ import {
 } from "./hooks";
 import { LivePhotoBadge, LivePhotoFeedback } from "./LivePhotoBadge";
 import { LivePhotoVideo } from "./LivePhotoVideo";
+import type { LoadingIndicatorRef } from "./LoadingIndicator";
 import type { ProgressiveImageProps, WebGLImageViewerRef } from "./types";
+import { useDetailImage } from "./useDetailImage";
+import { useDisplayImage } from "./useDisplayImage";
 import { useMediaViewportRefit } from "./useMediaViewportRefit";
 
 const PHOTO_VIEWER_FIT_IMAGE_STYLE = {
@@ -44,6 +55,7 @@ const WEBGL_DEBUG_ENABLED =
 export const ProgressiveImage = ({
   photoId,
   src,
+  displayImages,
   thumbnailSrc,
   thumbHash,
   alt,
@@ -62,11 +74,18 @@ export const ProgressiveImage = ({
   videoSource,
   shouldAutoPlayVideoOnce = false,
   isHDR = false,
-  loadingIndicatorRef,
+  loadingIndicatorRef: sharedLoadingIndicatorRef,
 }: ProgressiveImageProps) => {
   const { t } = useTranslation();
+  const runtime = useAfilmoryRuntime();
   const shouldReduceMotion = useReducedMotion() === true;
   const canUseWebGL = getCanUseWebGL();
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const display = useDisplayImage(
+    src,
+    { width, height, displayImages, isHDR, video: videoSource },
+    viewportRef,
+  );
 
   const thumbnailCacheKey =
     photoId && thumbnailSrc
@@ -90,8 +109,45 @@ export const ProgressiveImage = ({
   const blobSrc = image.status === "loaded" ? image.lease.blobSrc : null;
   const imageBlob = image.status === "loaded" ? image.lease.blob : null;
   const error = image.status === "failed";
-  const isHighResImageRendered = image.status === "loaded" && image.rendered;
   const isActiveImage = Boolean(isCurrentImage && shouldRenderHighRes);
+  const isHighResImageRendered =
+    isActiveImage && image.status === "loaded" && image.rendered;
+  // Callbacks belong to one activation of this slide. Late work from a previous
+  // canvas must not paint or clear the shared indicator after navigation.
+  const imageSession = useMemo(
+    () => ({ src, isCurrentImage }),
+    [src, isCurrentImage],
+  );
+  const imageSessionRef = useRef<typeof imageSession | null>(imageSession);
+  imageSessionRef.current = imageSession;
+  useLayoutEffect(() => {
+    imageSessionRef.current = imageSession;
+    return () => {
+      if (imageSessionRef.current === imageSession)
+        imageSessionRef.current = null;
+    };
+  }, [imageSession]);
+  const loadingIndicatorRef = useMemo(
+    () => ({
+      current: {
+        updateLoadingState: (...args) => {
+          if (
+            imageSession.isCurrentImage &&
+            imageSessionRef.current === imageSession
+          )
+            sharedLoadingIndicatorRef.current?.updateLoadingState(...args);
+        },
+        resetLoadingState: () => {
+          if (
+            imageSession.isCurrentImage &&
+            imageSessionRef.current === imageSession
+          )
+            sharedLoadingIndicatorRef.current?.resetLoadingState();
+        },
+      } satisfies LoadingIndicatorRef,
+    }),
+    [imageSession, sharedLoadingIndicatorRef],
+  );
   const webGLMinZoom = Math.min(minZoom, PHOTO_VIEWER_FIT_SCALE);
   const shouldShowLowResPlaceholder = Boolean(
     (thumbnailSrc || thumbHash) &&
@@ -105,7 +161,6 @@ export const ProgressiveImage = ({
 
   // Refs
   const thumbnailRef = useRef<HTMLImageElement>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
   const webglImageViewerRef = useRef<WebGLImageViewerRef | null>(null);
   const domImageViewerRef = useRef<ReactZoomPanPinchRef>(null);
   const livePhotoRef = useRef<any>(null);
@@ -113,10 +168,17 @@ export const ProgressiveImage = ({
   const useDomFallbackRef = useRef(useDomFallback);
   useDomFallbackRef.current = useDomFallback;
 
+  useEffect(() => {
+    // The active-only canvas/DOM image has been destroyed. A retained Blob
+    // lease does not mean the next canvas has painted yet.
+    if (!isActiveImage) setState.resetImageRendered();
+  }, [isActiveImage, setState]);
+
   // Hooks
   const reportImageFailure = useImageLoader({
-    src,
-    isCurrentImage,
+    src: display.image?.url ?? src,
+    fallbackSrc: display.image ? src : undefined,
+    isCurrentImage: isCurrentImage && display.ready,
     image,
     onProgress,
     onError,
@@ -124,6 +186,19 @@ export const ProgressiveImage = ({
     loadingIndicatorRef,
     actions: setState,
   });
+  const usesDisplayImage = Boolean(
+    display.image && image.status === "loaded" && image.sourceUrl !== src,
+  );
+  const {
+    lease: detailLease,
+    requestDetail,
+    reportFailure: reportDetailFailure,
+    hasError: hasDetailError,
+  } = useDetailImage(
+    src,
+    isActiveImage && usesDisplayImage,
+    loadingIndicatorRef,
+  );
 
   const { onTransformed, onDOMTransformed } = useScaleIndicator(
     onZoomChange,
@@ -172,17 +247,36 @@ export const ProgressiveImage = ({
 
   // 高清图已渲染到DOM（WebGL onImagePainted 或 DOM img onLoad）
   const handleHighResRendered = useCallback(() => {
-    // Returning to an already painted Live Photo remounts both DOM media
-    // elements. The video may already own the shared progress/error indicator
-    // before the new img fires load; only its first still-image paint may hide it.
-    if (hasVideo && isHighResImageRendered) return;
+    if (
+      !imageSession.isCurrentImage ||
+      imageSessionRef.current !== imageSession
+    )
+      return;
+    // Once video owns the shared progress/error indicator, repeated still-image
+    // load events must not dismiss its failure or retry action.
+    if ((hasVideo && isHighResImageRendered) || hasDetailError) return;
     setState.markImageRendered();
     loadingIndicatorRef.current?.updateLoadingState({
       isVisible: false,
     });
-  }, [hasVideo, isHighResImageRendered, loadingIndicatorRef, setState]);
+  }, [
+    hasVideo,
+    hasDetailError,
+    imageSession,
+    isHighResImageRendered,
+    loadingIndicatorRef,
+    setState,
+  ]);
 
   const showContextMenu = useShowContextMenu();
+  const loadOriginalForCopy = useCallback(async () => {
+    const loader = runtime.imageLoading.createLoader();
+    try {
+      return await loader.loadImage(src, { priority: "high" });
+    } finally {
+      runtime.imageLoading.cleanupLoader(loader);
+    }
+  }, [runtime.imageLoading, src]);
 
   const isHDRSupported = useMediaQuery("(dynamic-range: high)");
   // Only use HDR if the browser supports it and the image is HDR
@@ -197,16 +291,52 @@ export const ProgressiveImage = ({
     setUseDomFallback(false);
   }, [src]);
 
-  const handleWebGLError = useCallback(() => {
-    setUseDomFallback(true);
-    loadingIndicatorRef.current?.updateLoadingState({
-      isVisible: false,
-      isWebGLLoading: false,
-    });
-  }, [loadingIndicatorRef]);
+  const handleWebGLError = useCallback(
+    (cause: unknown) => {
+      if (usesDisplayImage) {
+        reportImageFailure(
+          cause instanceof Error
+            ? cause
+            : new Error("Display image decode failed", { cause }),
+        );
+        return;
+      }
+      setUseDomFallback(true);
+      loadingIndicatorRef.current?.updateLoadingState({
+        isVisible: false,
+        isWebGLLoading: false,
+      });
+    },
+    [loadingIndicatorRef, reportImageFailure, usesDisplayImage],
+  );
 
   const shouldUseDomImageViewer =
     hasVideo || shouldUseHDR || !canUseWebGL || useDomFallback;
+
+  const handleDOMTransformed = useCallback(
+    (isZoomed: boolean, scale: number) => {
+      onDOMTransformed(isZoomed, scale);
+      if (isZoomed && usesDisplayImage && display.image && width && height) {
+        const availableScale = Math.min(
+          display.image.width / width,
+          display.image.height / height,
+        );
+        if (
+          scale * Math.min(window.devicePixelRatio || 1, 2) >
+          availableScale * 1.05
+        )
+          requestDetail();
+      }
+    },
+    [
+      onDOMTransformed,
+      usesDisplayImage,
+      display.image,
+      width,
+      height,
+      requestDetail,
+    ],
+  );
 
   const zoomIn = useCallback(() => {
     if (shouldUseDomImageViewer) {
@@ -234,7 +364,7 @@ export const ProgressiveImage = ({
     if (shouldUseDomImageViewer) {
       domImageViewerRef.current?.resetTransform(shouldReduceMotion ? 0 : 180);
     } else {
-      webglImageViewerRef.current?.resetView();
+      webglImageViewerRef.current?.resetView(!shouldReduceMotion);
     }
   }, [shouldReduceMotion, shouldUseDomImageViewer]);
 
@@ -242,7 +372,7 @@ export const ProgressiveImage = ({
     if (shouldUseDomImageViewer) {
       domImageViewerRef.current?.resetTransform(0);
     } else {
-      webglImageViewerRef.current?.resetView();
+      webglImageViewerRef.current?.resetView(false);
     }
   }, [shouldUseDomImageViewer]);
   useMediaViewportRefit(
@@ -347,7 +477,12 @@ export const ProgressiveImage = ({
         <div
           className="absolute inset-0 h-full w-full"
           onContextMenu={(e) => {
-            const items = createContextMenuItems(blobSrc, alt, t);
+            const items = createContextMenuItems(
+              usesDisplayImage ? src : blobSrc,
+              alt,
+              t,
+              usesDisplayImage ? loadOriginalForCopy : undefined,
+            );
             showContextMenu(items, e);
           }}
         >
@@ -355,15 +490,18 @@ export const ProgressiveImage = ({
           {shouldUseDomImageViewer ? (
             <DOMImageViewer
               ref={domImageViewerRef}
-              onZoomChange={onDOMTransformed}
+              onZoomChange={handleDOMTransformed}
               minZoom={minZoom}
               maxZoom={maxZoom}
               fitScale={PHOTO_VIEWER_FIT_SCALE}
-              src={blobSrc}
+              src={detailLease?.blobSrc ?? blobSrc}
+              sourceWidth={width}
+              sourceHeight={height}
+              preserveTransformOnSourceChange={usesDisplayImage}
               alt={alt}
               highResLoaded={highResLoaded}
               onLoad={handleHighResRendered}
-              onError={reportImageFailure}
+              onError={detailLease ? reportDetailFailure : reportImageFailure}
             >
               {/* LivePhoto/Motion Photo 视频组件作为 children，跟随图片的变换 */}
               {hasVideo && videoSource && isHighResImageRendered && (
@@ -385,6 +523,12 @@ export const ProgressiveImage = ({
               aria-hidden={!isHighResImageRendered}
               src={blobSrc}
               sourceBlob={imageBlob}
+              previewCache={runtime.imagePreviewCache}
+              viewerSession={runtime.webGLViewerSession}
+              detailSrc={display.image ? src : undefined}
+              detailSourceBlob={detailLease?.blob}
+              onDetailRequested={usesDisplayImage ? requestDetail : undefined}
+              onDetailError={reportDetailFailure}
               className="absolute inset-0 h-full w-full"
               width={width}
               height={height}

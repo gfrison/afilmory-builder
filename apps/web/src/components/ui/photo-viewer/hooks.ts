@@ -4,6 +4,7 @@ import {
   startTransition,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -47,13 +48,19 @@ export function useProgressiveImageState(initialThumbnailLoaded = false) {
         setImage((previous) =>
           previous.status === "empty" ? previous : { status: "empty" },
         ),
-      setImageLease: (lease: MediaLease) =>
-        setImage({ status: "loaded", lease, rendered: false }),
+      setImageLease: (lease: MediaLease, sourceUrl?: string) =>
+        setImage({ status: "loaded", lease, sourceUrl, rendered: false }),
       setImageError: (error: Error) => setImage({ status: "failed", error }),
       markImageRendered: () =>
         setImage((previous) =>
           previous.status === "loaded"
             ? { ...previous, rendered: true }
+            : previous,
+        ),
+      resetImageRendered: () =>
+        setImage((previous) =>
+          previous.status === "loaded" && previous.rendered
+            ? { ...previous, rendered: false }
             : previous,
         ),
       setCurrentScale,
@@ -75,6 +82,7 @@ export function useProgressiveImageState(initialThumbnailLoaded = false) {
 
 interface ImageLoaderOptions {
   src: string;
+  fallbackSrc?: string;
   isCurrentImage: boolean;
   image: ImageContentState;
   onProgress?: (progress: number) => void;
@@ -89,6 +97,7 @@ interface ImageLoaderOptions {
 
 export function useImageLoader({
   src,
+  fallbackSrc,
   isCurrentImage,
   image,
   onProgress,
@@ -99,10 +108,23 @@ export function useImageLoader({
 }: ImageLoaderOptions) {
   const { t } = useTranslation();
   const runtime = useAfilmoryRuntime();
+  const [fallbackFor, setFallbackFor] = useState<string | null>(null);
+  const effectiveSrc = fallbackFor === src && fallbackSrc ? fallbackSrc : src;
   const imageLeaseRef = useRef<MediaLease | null>(null);
   const reportedFailureRef = useRef(false);
   const { resetImage, setImageLease, setImageError } = actions;
   const { status } = image;
+  const blobSrc = image.status === "loaded" ? image.lease.blobSrc : null;
+
+  useLayoutEffect(() => {
+    if (isCurrentImage) loadingIndicatorRef?.current?.resetLoadingState();
+  }, [src, isCurrentImage, loadingIndicatorRef]);
+
+  useEffect(() => {
+    // A virtual slide can keep its Blob lease while its canvas is unmounted.
+    // Returning to it must publish that source again, even without a new load.
+    if (isCurrentImage) onBlobSrcChange?.(blobSrc);
+  }, [blobSrc, isCurrentImage, onBlobSrcChange]);
 
   useEffect(() => {
     resetImage();
@@ -111,30 +133,43 @@ export function useImageLoader({
       imageLeaseRef.current?.release();
       imageLeaseRef.current = null;
     };
-  }, [src, runtime, resetImage]);
+  }, [effectiveSrc, runtime, resetImage]);
 
   const reportFailure = useCallback(
     (failure: Error) => {
       if (reportedFailureRef.current) return;
+      if (fallbackSrc && effectiveSrc !== fallbackSrc) {
+        runtime.imageCache.delete(src);
+        resetImage();
+        setFallbackFor(src);
+        return;
+      }
       reportedFailureRef.current = true;
       imageLeaseRef.current?.release();
       imageLeaseRef.current = null;
       setImageError(failure);
-      onBlobSrcChange?.(null);
       console.error("Failed to load image:", getMediaTaskDiagnostic(failure));
       onError?.(failure);
     },
-    [setImageError, onBlobSrcChange, onError],
+    [
+      effectiveSrc,
+      fallbackSrc,
+      runtime.imageCache,
+      src,
+      resetImage,
+      setImageError,
+      onError,
+    ],
   );
 
   const retry = useCallback(() => {
     reportedFailureRef.current = false;
     // A response can pass format detection but fail decoding. Fetch fresh
     // bytes on an explicit retry instead of replaying the cached bad image.
-    runtime.imageCache.delete(src);
+    runtime.imageCache.delete(effectiveSrc);
     loadingIndicatorRef?.current?.resetLoadingState();
     resetImage();
-  }, [runtime.imageCache, src, loadingIndicatorRef, resetImage]);
+  }, [runtime.imageCache, effectiveSrc, loadingIndicatorRef, resetImage]);
 
   useEffect(() => {
     if (image.status !== "failed" || !isCurrentImage) return;
@@ -154,11 +189,10 @@ export function useImageLoader({
     if (status !== "empty" || !isCurrentImage) return;
     const loader = runtime.imageLoading.createLoader();
     let cancelled = false;
-    onBlobSrcChange?.(null);
     loadingIndicatorRef?.current?.resetLoadingState();
     const load = async () => {
       try {
-        const result = await loader.loadImage(src, {
+        const result = await loader.loadImage(effectiveSrc, {
           priority: "high",
           onProgress: (progress) => {
             if (!cancelled) onProgress?.(progress);
@@ -176,8 +210,7 @@ export function useImageLoader({
         }
         imageLeaseRef.current?.release();
         imageLeaseRef.current = result;
-        setImageLease(result);
-        onBlobSrcChange?.(result.blobSrc);
+        setImageLease(result, effectiveSrc);
       } catch (cause) {
         if (cancelled || isAbortLikeError(cause)) return;
         reportFailure(
@@ -196,8 +229,7 @@ export function useImageLoader({
     status,
     isCurrentImage,
     runtime.imageLoading,
-    src,
-    onBlobSrcChange,
+    effectiveSrc,
     loadingIndicatorRef,
     onProgress,
     t,
@@ -213,6 +245,9 @@ export const useScaleIndicator = (
   setShowScaleIndicator?: (show: boolean) => void,
 ) => {
   const scaleIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const displayedScaleRef = useRef<number | null>(null);
+  const zoomedRef = useRef<boolean | null>(null);
+  const visibleRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -224,11 +259,15 @@ export const useScaleIndicator = (
 
   const handleScaleChange = useCallback(
     (scale: number, isZoomed: boolean) => {
-      // 更新缩放倍率并显示提示
-      startTransition(() => {
-        setCurrentScale?.(scale);
-        setShowScaleIndicator?.(true);
-      });
+      const displayedScale = Math.round(scale * 10) / 10;
+      if (displayedScaleRef.current !== displayedScale || !visibleRef.current) {
+        displayedScaleRef.current = displayedScale;
+        visibleRef.current = true;
+        startTransition(() => {
+          setCurrentScale?.(displayedScale);
+          setShowScaleIndicator?.(true);
+        });
+      }
 
       // 清除之前的定时器
       if (scaleIndicatorTimeoutRef.current) {
@@ -236,10 +275,14 @@ export const useScaleIndicator = (
       }
 
       scaleIndicatorTimeoutRef.current = setTimeout(() => {
+        visibleRef.current = false;
         setShowScaleIndicator?.(false);
       }, SHOW_SCALE_INDICATOR_DURATION);
 
-      onZoomChange?.(isZoomed);
+      if (zoomedRef.current !== isZoomed) {
+        zoomedRef.current = isZoomed;
+        onZoomChange?.(isZoomed);
+      }
     },
     [onZoomChange, setCurrentScale, setShowScaleIndicator],
   );
@@ -339,13 +382,18 @@ export const createContextMenuItems = (
   blobSrc: string,
   alt: string,
   t: TFunction<"app", undefined>,
+  loadCopySource?: () => Promise<MediaLease>,
 ) => [
   new MenuItemText({
     label: t("photo.copy.image"),
     click: async () => {
       const loadingToast = toast.loading(t("photo.copying"));
+      let copyLease: MediaLease | undefined;
+      let copySrc = blobSrc;
 
       try {
+        copyLease = await loadCopySource?.();
+        copySrc = copyLease?.blobSrc ?? blobSrc;
         // Create a canvas to convert the image to PNG
         const img = new Image();
         img.crossOrigin = "anonymous";
@@ -353,7 +401,7 @@ export const createContextMenuItems = (
         await new Promise((resolve, reject) => {
           img.onload = resolve;
           img.onerror = reject;
-          img.src = blobSrc;
+          img.src = copySrc;
         });
 
         const canvas = document.createElement("canvas");
@@ -390,7 +438,7 @@ export const createContextMenuItems = (
 
         // Fallback: try to copy the original blob
         try {
-          const blob = await fetch(blobSrc).then((res) => res.blob());
+          const blob = await fetch(copySrc).then((res) => res.blob());
           await navigator.clipboard.write([
             new ClipboardItem({
               [blob.type]: blob,
@@ -403,17 +451,33 @@ export const createContextMenuItems = (
           toast.dismiss(loadingToast);
           toast.error(t("photo.copy.error"));
         }
+      } finally {
+        copyLease?.release();
       }
     },
   }),
   MenuItemSeparator.default,
   new MenuItemText({
     label: t("photo.download"),
-    click: () => {
-      const a = document.createElement("a");
-      a.href = blobSrc;
-      a.download = alt;
-      a.click();
+    click: async () => {
+      let downloadUrl = blobSrc;
+      try {
+        if (!blobSrc.startsWith("blob:")) {
+          const response = await fetch(blobSrc);
+          if (!response.ok)
+            throw new Error(`Download failed: ${response.status}`);
+          downloadUrl = URL.createObjectURL(await response.blob());
+        }
+        const a = document.createElement("a");
+        a.href = downloadUrl;
+        a.download = alt;
+        a.click();
+      } catch {
+        toast.error(t("photo.error.loading"));
+      } finally {
+        if (downloadUrl !== blobSrc)
+          setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+      }
     },
   }),
 ];

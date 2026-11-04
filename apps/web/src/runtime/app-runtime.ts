@@ -1,14 +1,17 @@
 import type { AfilmoryManifest } from "@afilmory/schema";
+import { ImagePreviewCache, WebGLViewerSession } from "@afilmory/webgl-viewer";
 import { createStore } from "jotai";
 import { createContext, use, useSyncExternalStore } from "react";
 
 import { PhotoRepository } from "~/data-runtime/photo-repository";
+import { isMobileDevice } from "~/lib/device-viewport";
 import type { RegularImageCache } from "~/lib/image-cache-service";
 import { createRegularImageCache } from "~/lib/image-cache-service";
 import { ImageConversionService } from "~/lib/image-conversion-service";
 import { ImageConverterManager } from "~/lib/image-convert";
 import { ImageLoaderManager } from "~/lib/image-loader-manager";
 import { MediaResourceScope } from "~/lib/media-resource";
+import { SharedImageFetchService } from "~/lib/shared-image-fetch-service";
 import { VideoBlobCache } from "~/lib/video-blob-cache";
 import { VideoLoadService } from "~/lib/video-load-service";
 import { NavigationController } from "~/navigation/controller";
@@ -65,6 +68,7 @@ class RuntimeImageLoadingService implements ImageLoadingService {
   private readonly loaders = new Set<ImageLoaderManager>();
   private readonly videoCache = new VideoBlobCache();
   private readonly resources = new MediaResourceScope();
+  private readonly sharedFetch = new SharedImageFetchService();
   private disposed = false;
 
   constructor(
@@ -79,6 +83,7 @@ class RuntimeImageLoadingService implements ImageLoadingService {
     // 但不同 runtime 之间相互隔离，dispose 后随 runtime 一起被回收。
     const loader = new ImageLoaderManager(this.imageCache, {
       resources: this.resources,
+      imageFetchService: this.sharedFetch.createConsumer(),
       videoLoadService: new VideoLoadService(
         15_000,
         this.videoCache,
@@ -104,6 +109,7 @@ class RuntimeImageLoadingService implements ImageLoadingService {
       loader.cleanup();
     }
     this.loaders.clear();
+    this.sharedFetch.dispose();
     this.videoCache.dispose();
     this.resources.dispose();
   }
@@ -114,6 +120,8 @@ export type AppRuntime = {
   bodyScrollLock: BodyScrollLockManager;
   browser: AfilmoryBrowserRuntime;
   imageCache: RegularImageCache;
+  imagePreviewCache: ImagePreviewCache;
+  webGLViewerSession: WebGLViewerSession;
   imageConverter: ImageConverterManager;
   imageLoading: ImageLoadingService;
   photoRepository: PhotoRepository;
@@ -131,7 +139,13 @@ export function createAppRuntime({
   const navigation = new NavigationController();
   const bodyScrollLock = new BodyScrollLockManager();
   const imageCache = createRegularImageCache();
+  const imagePreviewCache = new ImagePreviewCache(
+    // Mobile keeps eight maximum-size (8 MiB) previews, or more smaller ones.
+    (isMobileDevice ? 64 : 48) * 1024 * 1024,
+    isMobileDevice ? 16 : 6,
+  );
   const imageConverter = new ImageConverterManager();
+  const webGLViewerSession = new WebGLViewerSession();
   const imageLoading = new RuntimeImageLoadingService(
     imageCache,
     imageConverter,
@@ -145,6 +159,8 @@ export function createAppRuntime({
     bodyScrollLock,
     browser: browserRuntime,
     imageCache,
+    imagePreviewCache,
+    webGLViewerSession,
     imageConverter,
     imageLoading,
     photoRepository,
@@ -153,6 +169,8 @@ export function createAppRuntime({
       navigation.dispose();
       imageLoading.dispose();
       this.imageCache.clear();
+      imagePreviewCache.dispose();
+      webGLViewerSession.dispose();
       photoRepository.dispose();
       bodyScrollLock.reset();
       return imageConverter.dispose();

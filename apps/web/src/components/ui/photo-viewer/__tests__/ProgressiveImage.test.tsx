@@ -34,16 +34,31 @@ const hoisted = vi.hoisted(() => ({
   zoomIn: vi.fn(),
   zoomOut: vi.fn(),
   resetView: vi.fn(),
+  loadedUrls: [] as string[],
+  webglCallbacks: {} as {
+    onImagePainted?: () => void;
+    onLoadingStateChange?: (loading: boolean, state?: number) => void;
+    previewCache?: unknown;
+    onDetailRequested?: () => void;
+    onDetailError?: (error: unknown) => void;
+    detailSrc?: string;
+    detailSourceBlob?: Blob | null;
+    viewerSession?: unknown;
+  },
   runtime: {
+    imagePreviewCache: { cache: "runtime-preview-cache" },
+    webGLViewerSession: { session: "runtime-viewer-session" },
     imageCache: { delete: vi.fn() },
     imageLoading: {
       createLoader: vi.fn(() => ({
-        loadImage: () =>
-          Promise.resolve({
+        loadImage: (src: string) => {
+          hoisted.loadedUrls.push(src);
+          return Promise.resolve({
             blobSrc: "blob:mock-image",
             release: vi.fn(),
             blob: new Blob(["photo"], { type: "image/jpeg" }),
-          }),
+          });
+        },
         cleanup: vi.fn(),
       })),
       cleanupLoader: vi.fn((loader: { cleanup: () => void }) => {
@@ -75,11 +90,28 @@ vi.mock("@afilmory/webgl-viewer", async () => {
   const React = await import("react");
 
   return {
+    LoadingState: { CREATE_TEXTURE: 0, IMAGE_LOADING: 1 },
     WebGLImageViewer: ({
       onError,
+      onImagePainted,
+      onLoadingStateChange,
+      previewCache,
+      onDetailRequested,
+      onDetailError,
+      detailSrc,
+      detailSourceBlob,
+      viewerSession,
       ref,
     }: {
       onError?: (error: unknown) => void;
+      onImagePainted?: () => void;
+      onLoadingStateChange?: (loading: boolean, state?: number) => void;
+      previewCache?: unknown;
+      onDetailRequested?: () => void;
+      onDetailError?: (error: unknown) => void;
+      detailSrc?: string;
+      detailSourceBlob?: Blob | null;
+      viewerSession?: unknown;
       ref?: React.RefObject<{
         zoomIn: () => void;
         zoomOut: () => void;
@@ -87,6 +119,16 @@ vi.mock("@afilmory/webgl-viewer", async () => {
         getScale: () => number;
       } | null>;
     }) => {
+      hoisted.webglCallbacks = {
+        onImagePainted,
+        onLoadingStateChange,
+        previewCache,
+        onDetailRequested,
+        onDetailError,
+        detailSrc,
+        detailSourceBlob,
+        viewerSession,
+      };
       React.useImperativeHandle(ref, () => ({
         zoomIn: hoisted.zoomIn,
         zoomOut: hoisted.zoomOut,
@@ -209,6 +251,139 @@ vi.mock("~/lib/feature", () => ({
 }));
 
 describe("ProgressiveImage", () => {
+  it("loads a fitted display image first and only requests the original when zoom needs detail", async () => {
+    hoisted.canUseWebGL = true;
+    render(
+      <ProgressiveImage
+        src="original.heic"
+        width={6000}
+        height={4000}
+        displayImages={[{ url: "display.jpg", width: 1600, height: 1067 }]}
+        alt="Display first"
+        isCurrentImage
+        loadingIndicatorRef={{ current: null }}
+      />,
+    );
+    const canvas = await screen.findByTestId("webgl-viewer");
+    expect(hoisted.loadedUrls).toEqual(["display.jpg"]);
+    expect(hoisted.webglCallbacks.detailSrc).toBe("original.heic");
+    expect(hoisted.webglCallbacks.detailSourceBlob).toBeUndefined();
+    expect(hoisted.webglCallbacks.viewerSession).toBe(
+      hoisted.runtime.webGLViewerSession,
+    );
+    act(() => hoisted.webglCallbacks.onImagePainted?.());
+    act(() => hoisted.webglCallbacks.onDetailRequested?.());
+    await waitFor(() =>
+      expect(hoisted.webglCallbacks.detailSourceBlob).toBeInstanceOf(Blob),
+    );
+    expect(hoisted.loadedUrls).toEqual(["display.jpg", "original.heic"]);
+    expect(screen.getByTestId("webgl-viewer")).toBe(canvas);
+    act(() => hoisted.webglCallbacks.onDetailRequested?.());
+    expect(hoisted.loadedUrls).toHaveLength(2);
+  });
+
+  it("falls back to the original when a display image fails without reporting a photo failure", async () => {
+    hoisted.canUseWebGL = true;
+    hoisted.runtime.imageLoading.createLoader.mockReturnValueOnce({
+      loadImage: (src: string) => {
+        hoisted.loadedUrls.push(src);
+        return Promise.reject(new Error("Missing display"));
+      },
+      cleanup: vi.fn(),
+    });
+    const onError = vi.fn();
+    render(
+      <ProgressiveImage
+        src="original.jpg"
+        width={6000}
+        height={4000}
+        displayImages={[{ url: "missing.jpg", width: 1600, height: 1067 }]}
+        alt="Display fallback"
+        isCurrentImage
+        onError={onError}
+        loadingIndicatorRef={{ current: null }}
+      />,
+    );
+    await screen.findByTestId("webgl-viewer");
+    expect(hoisted.loadedUrls).toEqual(["missing.jpg", "original.jpg"]);
+    expect(onError).not.toHaveBeenCalled();
+    expect(hoisted.webglCallbacks.onDetailRequested).toBeUndefined();
+  });
+
+  it("keeps the painted display canvas when original texture creation fails and offers retry", async () => {
+    hoisted.canUseWebGL = true;
+    const onError = vi.fn();
+    const indicator = {
+      current: { resetLoadingState: vi.fn(), updateLoadingState: vi.fn() },
+    };
+    render(
+      <ProgressiveImage
+        src="original.jpg"
+        width={6000}
+        height={4000}
+        displayImages={[{ url: "display.jpg", width: 1600, height: 1067 }]}
+        alt="Detail failure"
+        isCurrentImage
+        onError={onError}
+        loadingIndicatorRef={indicator}
+      />,
+    );
+    const canvas = await screen.findByTestId("webgl-viewer");
+    act(() => hoisted.webglCallbacks.onImagePainted?.());
+    act(() => hoisted.webglCallbacks.onDetailRequested?.());
+    await waitFor(() =>
+      expect(hoisted.webglCallbacks.detailSourceBlob).toBeInstanceOf(Blob),
+    );
+    act(() =>
+      hoisted.webglCallbacks.onDetailError?.(
+        new Error("Texture upload failed"),
+      ),
+    );
+    expect(screen.getByTestId("webgl-viewer")).toBe(canvas);
+    expect(onError).not.toHaveBeenCalled();
+    expect(hoisted.loadedUrls).toEqual(["display.jpg", "original.jpg"]);
+    act(() => hoisted.webglCallbacks.onImagePainted?.());
+    expect(
+      indicator.current.updateLoadingState.mock.calls.at(-1)![0].isError,
+    ).toBe(true);
+    const retry =
+      indicator.current.updateLoadingState.mock.calls.at(-1)![0].onRetry;
+    expect(retry).toBeTypeOf("function");
+    act(() => retry());
+    await waitFor(() =>
+      expect(hoisted.loadedUrls).toEqual([
+        "display.jpg",
+        "original.jpg",
+        "original.jpg",
+      ]),
+    );
+    expect(screen.getByTestId("webgl-viewer")).toBe(canvas);
+  });
+
+  it.each(["hdr", "video"] as const)(
+    "keeps %s photos on the original path",
+    async (kind) => {
+      render(
+        <ProgressiveImage
+          src="original.jpg"
+          width={6000}
+          height={4000}
+          displayImages={[{ url: "display.jpg", width: 1600, height: 1067 }]}
+          isHDR={kind === "hdr"}
+          videoSource={
+            kind === "video"
+              ? { type: "live-photo", videoUrl: "video.mov" }
+              : undefined
+          }
+          alt="Special photo"
+          isCurrentImage
+          loadingIndicatorRef={{ current: null }}
+        />,
+      );
+      await screen.findByRole("img", { name: "Special photo" });
+      expect(hoisted.loadedUrls).toEqual(["original.jpg"]);
+    },
+  );
   it("keeps Live and HDR badges together while playback feedback stays outside their layout", async () => {
     hoisted.supportsHDR = true;
     const { container } = render(
@@ -249,7 +424,7 @@ describe("ProgressiveImage", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
-  it("keeps video retry visible when a previously painted photo remounts before its new img load", async () => {
+  it("waits for a returning still image to paint before mounting video and preserves video retry", async () => {
     const Harness = ({ active }: { active: boolean }) => {
       const indicator = useRef<LoadingIndicatorRef | null>(null);
       return (
@@ -278,22 +453,84 @@ describe("ProgressiveImage", () => {
     vi.useFakeTimers();
     hoisted.failVideo = true;
     rerender(<Harness active />);
-    expect(screen.getByRole("alert").textContent).toContain(
-      "video.error.loading",
-    );
+    expect(screen.queryByRole("alert")).toBeNull();
     const remountedImage = screen.getByRole("img", {
       name: "Returning Live Photo",
     });
     expect(remountedImage).not.toBe(firstImage);
     fireEvent.load(remountedImage);
-    // LoadingIndicator defers hiding for 300ms. Wait beyond that window so a
-    // still-image callback cannot silently erase a newer video failure.
-    act(() => vi.advanceTimersByTime(301));
+    expect(screen.getByRole("alert").textContent).toContain(
+      "video.error.loading",
+    );
+    fireEvent.load(remountedImage);
     expect(screen.getByRole("alert").textContent).toContain(
       "video.error.loading",
     );
     fireEvent.click(screen.getByRole("button", { name: "photo.error.retry" }));
     expect(hoisted.retryVideo).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a thumbnail through inactive and returning canvas states and restores the retained Blob source", async () => {
+    hoisted.canUseWebGL = true;
+    const onBlobSrcChange = vi.fn();
+    const indicator = {
+      updateLoadingState: vi.fn(),
+      resetLoadingState: vi.fn(),
+    };
+    const loadingIndicatorRef = { current: indicator };
+    const props = {
+      photoId: "returning-photo",
+      src: "returning-photo.jpg",
+      thumbnailSrc: "returning-thumbnail.jpg",
+      alt: "Returning photo",
+      onBlobSrcChange,
+      loadingIndicatorRef,
+    };
+    const { rerender, unmount } = render(
+      <ProgressiveImage {...props} isCurrentImage />,
+    );
+    const firstCanvas = await screen.findByTestId("webgl-viewer");
+    expect(hoisted.webglCallbacks.previewCache).toBe(
+      hoisted.runtime.imagePreviewCache,
+    );
+    act(() => hoisted.webglCallbacks.onImagePainted?.());
+    expect(screen.queryByAltText("Returning photo")).toBeNull();
+    const inactiveCallbacks = hoisted.webglCallbacks;
+    rerender(<ProgressiveImage {...props} isCurrentImage={false} />);
+    expect(screen.queryByTestId("webgl-viewer")).toBeNull();
+    expect(screen.getByAltText("Returning photo").getAttribute("src")).toBe(
+      "returning-thumbnail.jpg",
+    );
+    indicator.updateLoadingState.mockClear();
+    act(() => {
+      inactiveCallbacks.onLoadingStateChange?.(true, 0);
+      inactiveCallbacks.onImagePainted?.();
+    });
+    expect(indicator.updateLoadingState).not.toHaveBeenCalled();
+
+    onBlobSrcChange.mockClear();
+    rerender(<ProgressiveImage {...props} isCurrentImage />);
+    expect(screen.getByTestId("webgl-viewer")).not.toBe(firstCanvas);
+    expect(screen.getByAltText("Returning photo")).toBeTruthy();
+    expect(onBlobSrcChange).toHaveBeenLastCalledWith("blob:mock-image");
+    expect(hoisted.runtime.imageLoading.createLoader).toHaveBeenCalledOnce();
+    indicator.updateLoadingState.mockClear();
+    act(() => {
+      inactiveCallbacks.onLoadingStateChange?.(false);
+      inactiveCallbacks.onImagePainted?.();
+    });
+    expect(indicator.updateLoadingState).not.toHaveBeenCalled();
+    expect(screen.getByAltText("Returning photo")).toBeTruthy();
+    act(() => hoisted.webglCallbacks.onImagePainted?.());
+    expect(screen.queryByAltText("Returning photo")).toBeNull();
+    const unmountedCallbacks = hoisted.webglCallbacks;
+    unmount();
+    indicator.updateLoadingState.mockClear();
+    act(() => {
+      unmountedCallbacks.onLoadingStateChange?.(false);
+      unmountedCallbacks.onImagePainted?.();
+    });
+    expect(indicator.updateLoadingState).not.toHaveBeenCalled();
   });
 
   it.each([false, true])(
@@ -352,6 +589,7 @@ describe("ProgressiveImage", () => {
     hoisted.zoomIn.mockReset();
     hoisted.zoomOut.mockReset();
     hoisted.resetView.mockReset();
+    hoisted.loadedUrls.length = 0;
     hoisted.runtime.imageLoading.createLoader.mockClear();
     hoisted.runtime.imageCache.delete.mockClear();
     resetThumbnailLoadCache();
