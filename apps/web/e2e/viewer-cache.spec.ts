@@ -207,7 +207,7 @@ for (const mobile of [false, true]) {
         });
       });
 
-      await page.goto("/photos/SYNTH0001?sort=asc");
+      await page.goto("/SYNTH0001?sort=asc");
       const viewer = page.getByRole("dialog", { name: "Photo viewer" });
       const { photo, canvas } = await paintedCanvas(viewer, "SYNTH0001");
       const firstCanvas = await canvas.elementHandle();
@@ -216,7 +216,7 @@ for (const mobile of [false, true]) {
       if (mobile && browserName === "chromium")
         await swipe(page, surface, "next");
       else await page.keyboard.press("ArrowRight");
-      await expect(page).toHaveURL(/\/photos\/SYNTH0002\?sort=asc$/);
+      await expect(page).toHaveURL(/\/SYNTH0002\?sort=asc$/);
       await paintedCanvas(viewer, "SYNTH0002");
       expect(
         await firstCanvas!.evaluate((element) => element.isConnected),
@@ -229,7 +229,7 @@ for (const mobile of [false, true]) {
       if (mobile && browserName === "chromium")
         await swipe(page, surface, "previous");
       else await page.keyboard.press("ArrowLeft");
-      await expect(page).toHaveURL(/\/photos\/SYNTH0001\?sort=asc$/);
+      await expect(page).toHaveURL(/\/SYNTH0001\?sort=asc$/);
       const returned = await paintedCanvas(viewer, "SYNTH0001");
       await expect
         .poll(async () =>

@@ -239,7 +239,7 @@ test.describe("production display image loading", () => {
       .toBe(true);
     expect(fixture.originalRequests).toEqual([]);
     await page.keyboard.press("ArrowLeft");
-    await expect(page).toHaveURL(/\/photos\/SYNTH0002(?:\?|$)/);
+    await expect(page).toHaveURL(/\/SYNTH0002(?:\?|$)/);
     await expect(
       viewer
         .getByRole("group", { name: "SYNTH0002", exact: true })
@@ -249,7 +249,7 @@ test.describe("production display image loading", () => {
     await waitForViewerTransformToSettle(page);
     const beforeReturn = await readViewerGPU(page);
     await page.keyboard.press("ArrowRight");
-    await expect(page).toHaveURL(/\/photos\/SYNTH0001(?:\?|$)/);
+    await expect(page).toHaveURL(/\/SYNTH0001(?:\?|$)/);
     await expect(first).toBeVisible();
     await waitForViewerTransformToSettle(page);
     const afterReturn = await readViewerGPU(page);
