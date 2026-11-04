@@ -267,7 +267,7 @@ const prepareOutput = async () => {
     await write(workspace, `apps/web/dist${photo.thumbnailUrl}`, image);
     await write(
       workspace,
-      `apps/web/dist/photos/${photo.id}/index.html`,
+      `apps/web/dist/${photo.id}/index.html`,
       `<meta property="og:image" content="${photo.id}">`,
     );
   }

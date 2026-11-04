@@ -26,14 +26,14 @@ test("a copied-link notification keeps one visible keyboard focus boundary", asy
       path: VIEWER_FIXTURE_IMAGE_PATH,
     }),
   );
-  await page.goto("/photos/SYNTH0001?sort=asc");
+  await page.goto("/SYNTH0001?sort=asc");
   const viewer = page.getByRole("dialog", { name: "Photo viewer" });
   await expect(viewer).toBeVisible();
   await viewer.getByRole("button", { name: "Share Photo" }).click();
   await page.getByRole("menuitem", { name: "Copy Link" }).click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-    .toBe(`${new URL(page.url()).origin}/photos/SYNTH0001`);
+    .toBe(`${new URL(page.url()).origin}/SYNTH0001`);
 
   const notification = page.locator("[data-sonner-toast]").filter({
     hasText: "Link copied to clipboard",

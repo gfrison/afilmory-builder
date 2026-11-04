@@ -165,7 +165,7 @@ test("opens the viewer from command search and restores route and scroll state",
   ).toBeVisible();
   await input.press("Enter");
 
-  await expect(page).toHaveURL(/\/photos\/[^/?]+/);
+  await expect(page).toHaveURL(/\/SYNTH\d{4}(?:[/?]|$)/);
   const viewer = page.getByRole("dialog", { name: "Photo viewer" });
   await expect(viewer).toBeVisible();
   await expect
@@ -212,9 +212,7 @@ test("keeps gallery links sized and restores keyboard focus after the viewer exi
 
   await photoLink.focus();
   await page.keyboard.press("Enter");
-  await expect
-    .poll(() => new URL(page.url()).pathname)
-    .toBe(`/photos/${photoId}`);
+  await expect.poll(() => new URL(page.url()).pathname).toBe(`/${photoId}`);
   const viewer = page.getByRole("dialog", { name: "Photo viewer" });
   await expect(viewer).toBeVisible();
   await expect(
@@ -327,7 +325,7 @@ test("map photo roundtrip restores the selected marker and panned camera", async
 }) => {
   await stubOriginalImages(page);
   await page.goto("/explore?mode=photos&photoId=SYNTH0001");
-  const photoLink = page.locator('a[href^="/photos/SYNTH0001"]').first();
+  const photoLink = page.locator('a[href^="/SYNTH0001"]').first();
   await expect(photoLink).toBeVisible();
   const canvas = page.locator("canvas.maplibregl-canvas");
   const markerPosition = () =>

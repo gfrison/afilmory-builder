@@ -294,7 +294,7 @@ export async function verifyDeployOutput(
       );
     }
     const shell = await fs.readFile(
-      path.join(dist, "photos", photo.id, "index.html"),
+      path.join(dist, photo.id, "index.html"),
       "utf8",
     );
     if (!shell.includes(photo.id) || !shell.includes('property="og:image"')) {

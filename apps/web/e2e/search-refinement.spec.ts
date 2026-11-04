@@ -251,7 +251,7 @@ test.describe("desktop search refinement", () => {
     const dialog = await openSearch(page, header);
     const { input, scrollTop } = await selectLastPhoto(dialog);
     await input.press("Enter");
-    await expect(page).toHaveURL(/\/photos\/SYNTH0010\?sort=asc$/);
+    await expect(page).toHaveURL(/\/SYNTH0010\?sort=asc$/);
     const viewer = page.getByRole("dialog", { name: "Photo viewer" });
     await expect(viewer).toBeVisible();
     await expect(dialog).toBeHidden();
@@ -275,7 +275,7 @@ test.describe("desktop search refinement", () => {
     );
     // A focused result remains a native button: Enter opens the new selection.
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/photos\/SYNTH0009\?sort=asc$/);
+    await expect(page).toHaveURL(/\/SYNTH0009\?sort=asc$/);
     await expect(viewer).toBeVisible();
     await expect(dialog).toBeHidden();
   });

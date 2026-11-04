@@ -34,7 +34,7 @@ test("gallery, command palette, and viewer work in WebKit", async ({
   await photos.first().click();
   const viewer = page.getByRole("dialog", { name: "Photo viewer" });
   await expect(viewer).toBeVisible();
-  await expect(page).toHaveURL(/\/photos\/[^/?]+/);
+  await expect(page).toHaveURL(/\/SYNTH\d{4}(?:[/?]|$)/);
 
   // Desktop eagerly renders the lazy EXIF inspector. Waiting for it prevents
   // Playwright from tearing down Vite while those chunks are still compiling,

@@ -276,7 +276,7 @@ test.describe("production original image loading", () => {
       )
       .toBeGreaterThan(0);
     await page.keyboard.press("ArrowLeft");
-    await expect(page).toHaveURL(/\/photos\/SYNTH0002(?:\?|$)/);
+    await expect(page).toHaveURL(/\/SYNTH0002(?:\?|$)/);
     const second = viewer
       .getByRole("group", { name: "SYNTH0002", exact: true })
       .locator('img[src^="blob:"]');
@@ -287,7 +287,7 @@ test.describe("production original image loading", () => {
       )
       .toBeGreaterThan(0);
     await page.keyboard.press("ArrowRight");
-    await expect(page).toHaveURL(/\/photos\/SYNTH0001(?:\?|$)/);
+    await expect(page).toHaveURL(/\/SYNTH0001(?:\?|$)/);
     await expect(original).toHaveAttribute("src", firstUrl);
     await expect
       .poll(() =>
@@ -510,7 +510,7 @@ test("production bundle serves gallery, viewer route, and service worker", async
   await expect(
     page.getByRole("dialog", { name: "Photo viewer" }),
   ).toBeVisible();
-  await expect(page).toHaveURL(/\/photos\/[^/?]+/);
+  await expect(page).toHaveURL(/\/SYNTH\d{4}(?:[/?]|$)/);
   await expect.poll(() => detailRequests.length).toBeGreaterThan(0);
 });
 
@@ -541,7 +541,7 @@ test.describe("production navigation journeys", () => {
         await route.continue();
       }
     });
-    await page.goto("/photos/SYNTH0001?sort=asc");
+    await page.goto("/SYNTH0001?sort=asc");
     const viewer = page.getByRole("dialog", { name: "Photo viewer" });
     await expect(viewer).toBeVisible();
     await expect(
@@ -562,7 +562,7 @@ test.describe("production navigation journeys", () => {
     await expect(
       viewer.getByRole("link", { name: "View location in map", exact: true }),
     ).toBeVisible();
-    await expect(page).toHaveURL(/\/photos\/SYNTH0001\?sort=asc$/);
+    await expect(page).toHaveURL(/\/SYNTH0001\?sort=asc$/);
     expect(detailRequests).toBe(2);
   });
 
@@ -621,7 +621,7 @@ test.describe("production navigation journeys", () => {
   test("trailing-slash detail opens and standalone close returns to filtered gallery", async ({
     page,
   }) => {
-    await page.goto("/photos/SYNTH0001/?sort=asc");
+    await page.goto("/SYNTH0001/?sort=asc");
     const viewer = page.getByRole("dialog", { name: "Photo viewer" });
     await expect(viewer).toBeVisible();
     await page.keyboard.press("Escape");
@@ -658,7 +658,7 @@ test.describe("production navigation journeys", () => {
       await hydration.promise;
       await route.continue();
     });
-    await page.goto("/photos/SYNTH0001?sort=asc");
+    await page.goto("/SYNTH0001?sort=asc");
     await expect(
       page.getByRole("dialog", { name: "Photo viewer" }),
     ).toBeVisible();
@@ -692,11 +692,11 @@ test.describe("production navigation journeys", () => {
     const viewer = page.getByRole("dialog", { name: "Photo viewer" });
     await expect(viewer).toBeVisible();
     await page.keyboard.press("ArrowLeft");
-    await expect(page).toHaveURL(/\/photos\/SYNTH0002$/);
+    await expect(page).toHaveURL(/\/SYNTH0002$/);
     await page.keyboard.press("Escape");
     await expect(page).toHaveURL(/\/$/);
     await page.goForward();
-    await expect(page).toHaveURL(/\/photos\/SYNTH0002$/);
+    await expect(page).toHaveURL(/\/SYNTH0002$/);
     await expect(viewer).toBeVisible();
     await page.goBack();
     await expect(page).toHaveURL(/\/$/);
@@ -789,7 +789,7 @@ test.describe("production detail actions", () => {
     });
     try {
       await page.goto(
-        "/photos/SYNTH0001?sort=asc&returnTo=%2Fexplore%3Fmode%3Dphotos",
+        "/SYNTH0001?sort=asc&returnTo=%2Fexplore%3Fmode%3Dphotos",
         { waitUntil: "commit" },
       );
       await expect.poll(() => galleryRequests).toBe(1);
@@ -825,7 +825,7 @@ test.describe("production detail actions", () => {
       await page.getByRole("menuitem", { name: "Copy Link" }).click();
       await expect
         .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-        .toBe(`${new URL(page.url()).origin}/photos/SYNTH0001`);
+        .toBe(`${new URL(page.url()).origin}/SYNTH0001`);
     } finally {
       galleryDownload.resolve();
     }

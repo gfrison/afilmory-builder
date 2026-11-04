@@ -78,7 +78,7 @@ test.afterEach(async ({ page }, testInfo) => {
 });
 
 async function openViewer(page: Page, id = "SYNTH0001") {
-  await page.goto(`/photos/${id}?sort=asc`);
+  await page.goto(`/${id}?sort=asc`);
   const viewer = page.getByRole("dialog", { name: "Photo viewer" });
   await expect(viewer).toBeVisible();
   const photo = viewer.getByRole("group", { name: id, exact: true });
@@ -141,7 +141,7 @@ test("desktop keeps the default inspector and filmstrip while showing the actual
   }
 
   await page.keyboard.press("ArrowRight");
-  await expect(page).toHaveURL(/\/photos\/SYNTH0002\?sort=asc$/);
+  await expect(page).toHaveURL(/\/SYNTH0002\?sort=asc$/);
   await expectSequence(viewer, "all", 2, 18);
   await expect(
     viewer.locator('.af-viewer-filmstrip [aria-current="true"]'),
@@ -171,11 +171,11 @@ test("sequence labels follow the filtered set and the existing all-photo fallbac
   const viewer = page.getByRole("dialog", { name: "Photo viewer" });
   await expectSequence(viewer, "filtered", 1, 2);
   await page.keyboard.press("ArrowRight");
-  await expect(page).toHaveURL(/\/photos\/SYNTH0016\?/);
+  await expect(page).toHaveURL(/\/SYNTH0016\?/);
   await expectSequence(viewer, "filtered", 2, 2);
   // A searched/deep-linked photo outside the filters uses the full library.
   // The label must describe that actual viewer sequence, not just the URL.
-  await page.goto(`/photos/SYNTH0001?${filters}`);
+  await page.goto(`/SYNTH0001?${filters}`);
   await expectSequence(viewer, "all", 1, 18);
 });
 

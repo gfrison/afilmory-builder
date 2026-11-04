@@ -22,7 +22,7 @@ async function openViewer(page: Page): Promise<[Locator, Locator]> {
   await page.locator("[data-photo-id]").first().click();
   const dialog = page.getByRole("dialog", { name: "Photo viewer" });
   await expect(dialog).toBeVisible();
-  await expect(page).toHaveURL(/\/photos\/[^/?]+/);
+  await expect(page).toHaveURL(/\/SYNTH\d{4}(?:[/?]|$)/);
   // CDP touch dispatch bypasses Playwright actionability. Wait for both the
   // native pointer listeners and the enabled gesture state to be committed.
   const gestureTarget = dialog.locator(
@@ -84,7 +84,7 @@ async function touchDragDown(
 
 // 关闭后返回瀑布流的路由是 `/` 或 `/?...`（layout 延迟 ~500ms navigate，toHaveURL 自动重试兜住）。
 const GALLERY_URL = /\/(\?.*)?$/;
-const VIEWER_URL = /\/photos\/[^/?]+/;
+const VIEWER_URL = /\/SYNTH\d{4}(?:[/?]|$)/;
 
 test.beforeEach(async ({ page }) => {
   // Thumbnails cover the only non-bundled dependency of these routes, so the

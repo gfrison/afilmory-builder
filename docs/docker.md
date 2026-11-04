@@ -96,7 +96,8 @@ resolve under `/photos`, and photo detail pages are served at
 
 ## GitHub Actions usage
 
-The container is designed to be published to a registry (e.g. GHCR) and invoked
+The container is published to Docker Hub as `gfrison/afilmory-builder:latest`
+(on every push to `main`) and invoked
 from the repository that holds the raw photos. Example workflow for that repo:
 
 ```yaml
@@ -127,7 +128,7 @@ jobs:
             -v "$PWD/photos:/data/photos" \
             -v "$PWD/config.yaml:/config/config.yaml" \
             -v "$PWD/out:/output" \
-            ghcr.io/OWNER/afilmory-builder:latest
+            gfrison/afilmory-builder:latest
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./out
