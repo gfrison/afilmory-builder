@@ -31,3 +31,10 @@ jobs:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/afilmory-builder:latest
+      - name: Build photos
+        env:
+          GH_TOKEN: ${{ secrets.PHOTOS_TRIGGER}}
+        run: |
+          gh workflow run deploy.yml \
+            --repo gfrison/photos \
+            --ref main
