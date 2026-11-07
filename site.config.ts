@@ -49,6 +49,9 @@ interface Social {
   rss?: boolean;
 }
 
+export const DEFAULT_AUTHOR_AVATAR =
+  "https://raw.githubusercontent.com/vsxd/afilmory-vercel/main/logo.png";
+
 export const siteConfig: SiteConfig = {
   name: "Afilmory Vercel",
   title: "Afilmory Vercel",
@@ -59,8 +62,7 @@ export const siteConfig: SiteConfig = {
   author: {
     name: "Author",
     url: "https://your.domain",
-    avatar:
-      "https://raw.githubusercontent.com/vsxd/afilmory-vercel/main/logo.png",
+    avatar: DEFAULT_AUTHOR_AVATAR,
   },
   social: {
     github: "",

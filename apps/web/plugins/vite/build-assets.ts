@@ -10,7 +10,9 @@ import type { Plugin, ResolvedConfig } from "vite";
 
 // site.config is intentionally a repository-level, browser-safe config file.
 import type { SiteConfig } from "../../../../site.config";
+import { DEFAULT_AUTHOR_AVATAR } from "../../../../site.config";
 import { MANIFEST_PATH } from "./__internal__/constants";
+import { fetchAvatar, renderFaviconSet } from "./__internal__/favicons";
 import {
   createPhotoPageHtml,
   generateSitemap,
@@ -36,6 +38,11 @@ const RESERVED_PHOTO_SHELL_IDS = new Set([
   "explore",
   "manifest",
 ]);
+
+async function loadAvatarFavicons(avatar: string | undefined) {
+  if (!avatar || avatar === DEFAULT_AUTHOR_AVATAR) return [];
+  return renderFaviconSet(await fetchAvatar(avatar));
+}
 
 interface OGImagePluginOptions {
   title?: string;
@@ -66,6 +73,9 @@ export function buildAssetsPlugin(
       resolvedConfig = config;
     },
     async buildStart() {
+      const avatarFavicons = loadAvatarFavicons(siteConfig.author.avatar);
+      // Stays observed if the OG step aborts the build before it is awaited.
+      avatarFavicons.catch(() => {});
       try {
         const ogImage = await generateOGImage({
           title,
@@ -91,6 +101,19 @@ export function buildAssetsPlugin(
       } catch (error) {
         this.error(
           `Failed to generate OG image: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      try {
+        const files = await avatarFavicons;
+        for (const { fileName, source } of files) {
+          this.emitFile({ type: "asset", fileName, source });
+        }
+        if (files.length > 0) {
+          this.info(`Site icons generated from author avatar`);
+        }
+      } catch (error) {
+        this.warn(
+          `Using default site icons; author avatar could not be converted: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     },
