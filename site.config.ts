@@ -47,6 +47,7 @@ interface Social {
   twitter?: string;
   github?: string;
   rss?: boolean;
+  home?: string;
 }
 
 export const DEFAULT_AUTHOR_AVATAR =

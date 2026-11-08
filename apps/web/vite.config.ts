@@ -15,6 +15,7 @@ import { buildAssetsPlugin } from "./plugins/vite/build-assets";
 import { dependencyChunkGroups } from "./plugins/vite/chunks";
 import { dataInjectPlugin } from "./plugins/vite/data-inject";
 import { createDependencyChunksPlugin } from "./plugins/vite/deps";
+import { googleAnalyticsPlugin } from "./plugins/vite/google-analytics";
 import { localesJsonPlugin } from "./plugins/vite/locales-json";
 import { photosStaticPlugin } from "./plugins/vite/photos-static";
 import { createAfilmoryPwaPlugin } from "./plugins/vite/pwa";
@@ -70,6 +71,7 @@ const codeInspectorPlugin = await loadCodeInspectorPlugin();
 
 const staticWebBuildPlugins: PluginOption[] = [
   dataInjectPlugin(),
+  googleAnalyticsPlugin(env.GOOGLE_ANALYTICS_ID),
   photosStaticPlugin({
     provider: env.PHOTO_STORAGE_PROVIDER,
     localPhotosPath: env.LOCAL_PHOTOS_PATH,

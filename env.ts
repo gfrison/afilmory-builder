@@ -124,6 +124,22 @@ export const env = createEnv({
     SOCIAL_GITHUB: z.string().optional(),
     SOCIAL_TWITTER: z.string().optional(),
     SOCIAL_RSS: z.enum(["true", "false"]).optional(), // 'true' or 'false'
+    SOCIAL_HOME: z.preprocess(
+      (value) =>
+        typeof value === "string" && !value.trim() ? undefined : value,
+      safePublicUrl.optional(),
+    ),
+
+    // Google Analytics 4 measurement ID (optional)
+    GOOGLE_ANALYTICS_ID: z.preprocess(
+      (value) =>
+        typeof value === "string" && !value.trim() ? undefined : value,
+      z
+        .string()
+        .trim()
+        .regex(/^G-[A-Z0-9]+$/i)
+        .optional(),
+    ),
 
     // Feed config (optional)
     FEED_FOLO_FEED_ID: z.string().optional(),

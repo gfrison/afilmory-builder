@@ -66,6 +66,9 @@ function configToEnv(config: Json): Record<string, string> {
     SOCIAL_GITHUB: social.github,
     SOCIAL_TWITTER: social.twitter,
     SOCIAL_RSS: social.rss,
+    SOCIAL_HOME: social.home,
+
+    GOOGLE_ANALYTICS_ID: config.google_analytics,
 
     FEED_FOLO_FEED_ID: feed.foloFeedId,
     FEED_FOLO_USER_ID: feed.foloUserId,

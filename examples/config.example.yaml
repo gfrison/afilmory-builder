@@ -24,6 +24,10 @@ social:
   github: janedoe
   twitter: janedoe
   rss: true
+  # home: https://example.com
+
+# Optional GA4 measurement ID; when set every page and photo view is tracked.
+# google_analytics: G-XXXXXXXXXX
 
 # strip | coarse | exact — how precise embedded photo GPS location may be.
 photoLocationMode: coarse

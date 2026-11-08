@@ -32,6 +32,7 @@ const envConfig: Partial<SiteConfig> = {
     rss: env.SOCIAL_RSS
       ? env.SOCIAL_RSS === "true"
       : baseSiteConfig.social?.rss,
+    home: env.SOCIAL_HOME || baseSiteConfig.social?.home,
   },
   feed: {
     folo: {
